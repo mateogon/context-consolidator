@@ -1,0 +1,77 @@
+{
+  "name": "file-consolidator",
+  "displayName": "File Consolidator",
+  "publisher": "Mateogon",
+  "description": "Streamline AI coding workflow: Quickly consolidate project files for LLM context",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": ["Other"],
+  "contributes": {
+    
+    "keybindings": [
+      {
+        "command": "extension.consolidateFiles",
+        "key": "ctrl+alt+c",
+        "mac": "cmd+alt+c"
+      }
+    ],
+    "commands": [
+      {
+        "command": "extension.consolidateFiles",
+        "title": "Consolidate Files"
+      },
+      {
+        "command": "extension.addToConsolidateList",
+        "title": "Add to Consolidate List"
+      },
+      {
+        "command": "extension.addFolderToConsolidateList",
+        "title": "Add Folder to Consolidate List"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "extension.addToConsolidateList",
+          "group": "navigation",
+          "when": "editorTextFocus"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "extension.addToConsolidateList",
+          "group": "navigation",
+          "when": "resourceScheme == file && !explorerResourceIsFolder"
+        },
+        {
+          "command": "extension.addFolderToConsolidateList",
+          "group": "navigation",
+          "when": "explorerResourceIsFolder"
+        }
+      ]
+    }
+  },
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.96.0",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "eslint": "^9.16.0",
+    "typescript": "^5.7.2",
+    "vscode": "^1.1.34"
+  }
+ }
