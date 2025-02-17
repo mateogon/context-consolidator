@@ -1,15 +1,18 @@
 {
-  "name": "file-consolidator",
-  "displayName": "File Consolidator",
+  "name": "context-consolidator",
+  "displayName": "Context Consolidator",
   "publisher": "Mateogon",
-  "description": "Streamline AI coding workflow: Quickly consolidate project files for LLM context",
+  "description": "Streamline your workflow by consolidating project context for LLM prompts.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mateogon/file-consolidator.git"
+  },
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.96.0"
   },
   "categories": ["Other"],
   "contributes": {
-    
     "keybindings": [
       {
         "command": "extension.consolidateFiles",
@@ -74,4 +77,4 @@
     "typescript": "^5.7.2",
     "vscode": "^1.1.34"
   }
- }
+}

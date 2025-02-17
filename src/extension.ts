@@ -3,9 +3,14 @@ import * as vscode from 'vscode';
 let filesToConsolidate = new Set<string>();
 let statusBarItem: vscode.StatusBarItem;
 function getConsolidateHotkey(): string {
-  const config = vscode.workspace.getConfiguration('fileConsolidator');
+  const config = vscode.workspace.getConfiguration('contextConsolidator');
   return config.get('consolidateHotkey', 'ctrl+alt+c');
 }
+interface ConsolidatorQuickPickItem extends vscode.QuickPickItem {
+  action?: 'consolidate' | 'clear' | 'remove';
+  uri?: string;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
   statusBarItem.text = "Files to Consolidate (0)";
@@ -21,18 +26,15 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     keyboardShortcut,
     vscode.commands.registerCommand('extension.registerCustomHotkey', () => {
-      // Optional: Allow runtime hotkey registration/update
       vscode.window.showInformationMessage(`Current hotkey: ${hotkey}`);
     })
   );
   context.subscriptions.push(
     vscode.commands.registerCommand('extension.addFolderToConsolidateList', async (uri: vscode.Uri) => {
       if (!uri) return;
-      
       const files = await vscode.workspace.findFiles(
         new vscode.RelativePattern(uri.fsPath, '**/*')
       );
-      
       files.forEach(file => filesToConsolidate.add(file.toString()));
       updateStatusBar();
     }),
@@ -45,44 +47,50 @@ export function activate(context: vscode.ExtensionContext) {
       filesToConsolidate.add(uri.toString());
       updateStatusBar();
     }),
-    vscode.commands.registerCommand('extension.showConsolidateMenu', async () => {
-      const items = Array.from(filesToConsolidate).map(uriStr => {
-        const uri = vscode.Uri.parse(uriStr);
-        return {
-          label: vscode.workspace.asRelativePath(uri),
-          uri: uriStr,
-          action: 'remove'
-        };
-      });
+    vscode.commands.registerCommand('extension.showConsolidateMenu', () => {
+      const quickPick = vscode.window.createQuickPick<ConsolidatorQuickPickItem>();
+      quickPick.placeholder = 'Select an action or file to remove';
+      
+      const updateItems = () => {
+        const fileItems: ConsolidatorQuickPickItem[] = Array.from(filesToConsolidate).map(uriStr => {
+          const uri = vscode.Uri.parse(uriStr);
+          return {
+            label: vscode.workspace.asRelativePath(uri),
+            uri: uriStr,
+            action: 'remove',
+            description: 'Remove'
+          };
+        });
+        quickPick.items = [
+          { label: '$(file-add) Consolidate All', action: 'consolidate' },
+          { label: '$(clear-all) Clear List', action: 'clear' },
+          ...fileItems
+        ];
+      };
+      updateItems();
     
-      const quickPickItems = [
-        { label: '$(file-add) Consolidate All', action: 'consolidate' },
-        { label: '$(clear-all) Clear List', action: 'clear' },
-        ...items
-      ];
-    
-      const result = await vscode.window.showQuickPick(quickPickItems, {
-        placeHolder: 'Choose action'
-      });
-    
-      if (!result) return;
-    
-      switch (result.action) {
-        case 'consolidate':
-          await consolidateFiles();
-          break;
-        case 'clear':
-          filesToConsolidate.clear();
-          break;
-        case 'remove':
-          if ('uri' in result) {
-            filesToConsolidate.delete(result.uri);
+      quickPick.onDidChangeSelection(selection => {
+        if (selection[0]) {
+          const item = selection[0];
+          if (item.action === 'consolidate') {
+            consolidateFiles();
+            quickPick.hide();
+          } else if (item.action === 'clear') {
+            filesToConsolidate.clear();
+            updateStatusBar();
+            updateItems();
+          } else if (item.uri) {
+            filesToConsolidate.delete(item.uri);
+            updateStatusBar();
+            updateItems();
           }
-          break;
-      }
-      updateStatusBar();
+        }
+      });
+      quickPick.onDidHide(() => quickPick.dispose());
+      quickPick.show();
     })
-  )
+    
+  );
 }
 
 function updateStatusBar() {
@@ -93,21 +101,22 @@ async function consolidateFiles() {
   const docs = await Promise.all(
     Array.from(filesToConsolidate).map(async uriStr => {
       const uri = vscode.Uri.parse(uriStr);
-      const doc = await vscode.workspace.openTextDocument(uri);
-      return doc;
+      return vscode.workspace.openTextDocument(uri);
     })
   );
-
+  
+  // Create the file list and wrap in XML tags.
   const fileList = docs.map(doc => doc.fileName || 'Untitled').join('\n');
-  const consolidatedContent = docs
-    .map(doc => {
-      const fileName = doc.fileName || 'Untitled';
-      const fileContent = doc.getText();
-      return `# ${fileName}\n${fileContent}`;
-    })
-    .join('\n\n');
-
-  const finalContent = `# File List\n${fileList}\n\n# File Contents\n\n${consolidatedContent}`;
+  const folderTreeXML = `<FolderTree>\n${fileList}\n</FolderTree>`;
+  
+  // Wrap each file's content in a <Code> tag including its file name.
+  const codeXML = docs.map(doc => {
+    const fileName = doc.fileName || 'Untitled';
+    const fileContent = doc.getText();
+    return `<Code file="${fileName}">\n${fileContent}\n</Code>`;
+  }).join('\n');
+  
+  const finalContent = `<ConsolidatedFilesContext>\n${folderTreeXML}\n${codeXML}\n</ConsolidatedFilesContext>`;
   await vscode.env.clipboard.writeText(finalContent);
   
   const totalLines = docs.reduce((sum, doc) => sum + doc.lineCount, 0);
