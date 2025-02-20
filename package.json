@@ -22,6 +22,10 @@
     ],
     "commands": [
       {
+        "command": "extension.addSnippetToConsolidateList",
+        "title": "Add Selection to Consolidate List"
+      },
+      {
         "command": "extension.consolidateFiles",
         "title": "Consolidate Files"
       },
@@ -36,6 +40,11 @@
     ],
     "menus": {
       "editor/context": [
+        {
+          "command": "extension.addSnippetToConsolidateList",
+          "group": "navigation",
+          "when": "editorTextFocus && !editorReadonly"
+        },
         {
           "command": "extension.addToConsolidateList",
           "group": "navigation",
