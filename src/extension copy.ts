@@ -6,9 +6,10 @@ interface ConsolidateItem {
   uri: string;
   range?: vscode.Range; // originally selected range
   text?: string;        // snapshot of the selected snippet
-  contextBefore?: string;
-  contextAfter?: string;
+  anchorStart?: string; // first line (trimmed) of the snippet
+  anchorEnd?: string;   // last line (trimmed) of the snippet
 }
+
 let consolidateItems: ConsolidateItem[] = [];
 let statusBarItem: vscode.StatusBarItem;
 
@@ -84,25 +85,20 @@ export function activate(context: vscode.ExtensionContext) {
       }
       const range = new vscode.Range(selection.start, selection.end);
       const text = editor.document.getText(range);
-      let contextBefore = "";
-      let contextAfter = "";
-      if (selection.start.line > 0) {
-        contextBefore = editor.document.lineAt(selection.start.line - 1).text;
-      }
-      if (selection.end.line < editor.document.lineCount - 1) {
-        contextAfter = editor.document.lineAt(selection.end.line + 1).text;
-      }
+      // Get anchor lines: use the actual first and last lines of the selection.
+      const anchorStart = editor.document.lineAt(selection.start.line).text.trim();
+      const anchorEnd = editor.document.lineAt(selection.end.line).text.trim();
       consolidateItems.push({
         type: 'snippet',
         uri: editor.document.uri.toString(),
         range,
         text,
-        contextBefore,
-        contextAfter
+        anchorStart,
+        anchorEnd
       });
       updateStatusBar();
       updateHighlightsForDocument(editor.document);
-    })    
+    })
   );
 
   // Show Menu
@@ -178,29 +174,45 @@ export function activate(context: vscode.ExtensionContext) {
 function updateStatusBar() {
   statusBarItem.text = `Items to Consolidate (${consolidateItems.length})`;
 }
-function updateSnippetFull(item: ConsolidateItem, doc: vscode.TextDocument): { updatedText: string, newRange: vscode.Range } {
-  const content = doc.getText();
-  // Find start offset: if contextBefore is found, assume snippet begins right after it.
-  let startOffset: number;
-  if (item.contextBefore && item.contextBefore.length > 0) {
-    const idx = content.indexOf(item.contextBefore);
-    startOffset = idx !== -1 ? idx + item.contextBefore.length : doc.offsetAt(item.range!.start);
+// Helper: use patch_make/patch_apply to get the updated snippet block
+function updateSnippetUsingPatch(item: ConsolidateItem, doc: vscode.TextDocument): { updatedText: string, newRange: vscode.Range } {
+  const currentContent = doc.getText();
+  const origSnippet = item.text!;
+  const approxLoc = doc.offsetAt(item.range!.start);
+  let matchIndex: number;
+
+  // If snippet is longer than allowed for bitap matching, use indexOf
+  if (origSnippet.length > dmp.Match_MaxBits) {
+    matchIndex = currentContent.indexOf(origSnippet, approxLoc);
   } else {
-    startOffset = doc.offsetAt(item.range!.start);
+    matchIndex = dmp.match_main(currentContent, origSnippet, approxLoc);
   }
-  // Find end offset: if contextAfter is found after the start, assume snippet ends just before it.
-  let endOffset: number;
-  if (item.contextAfter && item.contextAfter.length > 0) {
-    const idx = content.indexOf(item.contextAfter, startOffset);
-    endOffset = idx !== -1 ? idx : doc.offsetAt(item.range!.end);
-  } else {
-    endOffset = doc.offsetAt(item.range!.end);
+
+  if (matchIndex < 0) {
+    // If no match is found, fall back to the original snippet.
+    return { updatedText: origSnippet, newRange: item.range! };
   }
-  // Optionally, extend to full lines by converting offsets to positions.
-  const newStart = doc.positionAt(startOffset);
-  const newEnd = doc.positionAt(endOffset);
-  const updatedText = doc.getText(new vscode.Range(newStart, newEnd));
-  return { updatedText, newRange: new vscode.Range(newStart, newEnd) };
+  
+  // Define a wide window to capture any extra lines.
+  const windowEnd = Math.min(currentContent.length, matchIndex + origSnippet.length + 500);
+  const windowText = currentContent.substring(matchIndex, windowEnd);
+  
+  // Generate a patch from the original snippet to the current window.
+  const patches = dmp.patch_make(origSnippet, windowText);
+  const [patchedText, patchResults] = dmp.patch_apply(patches, origSnippet);
+  
+  // Now, locate the patched text in the current file using indexOf.
+  const updatedIndex = currentContent.indexOf(patchedText, matchIndex);
+  if (updatedIndex < 0) {
+    return { updatedText: origSnippet, newRange: item.range! };
+  }
+  
+  const newStart = doc.positionAt(updatedIndex);
+  const newEnd = doc.positionAt(updatedIndex + patchedText.length);
+  const newRange = new vscode.Range(newStart, newEnd);
+  const updatedText = doc.getText(newRange);
+  
+  return { updatedText, newRange };
 }
 
 
@@ -262,22 +274,23 @@ async function consolidateFiles() {
       const doc = docCache[item.uri];
       if (!doc) return `<!-- Could not open file: ${path} -->`;
       return `<Code file="${path}">\n${doc.getText()}\n</Code>`;
-    } else {
-      let snippetText = item.text!;
-      let startLine = item.range!.start.line + 1;
-      let endLine = item.range!.end.line + 1;
-      const doc = docCache[item.uri];
-      if (doc) {
-        const { updatedText, newRange } = updateSnippetFull(item, doc);
-        snippetText = updatedText;
-        startLine = newRange.start.line + 1;
-        endLine = newRange.end.line + 1;
-        item.range = newRange;
-      }
-      return `<Code file="${path}" snippet="lines ${startLine}-${endLine}">\n${snippetText}\n</Code>`;
+    // In consolidateFiles(), for snippet items:
+  } else {
+    let snippetText = item.text!;
+    let startLine = item.range!.start.line + 1;
+    let endLine = item.range!.end.line + 1;
+    const doc = docCache[item.uri];
+    if (doc) {
+      const { updatedText, newRange } = updateSnippetUsingPatch(item, doc);
+      snippetText = updatedText;
+      startLine = newRange.start.line + 1;
+      endLine = newRange.end.line + 1;
+      item.range = newRange;
     }
-    
-    
+    return `<Code file="${path}" snippet="lines ${startLine}-${endLine}">\n${snippetText}\n</Code>`;
+  }
+  
+  
   }).join('\n');
 
   const finalContent = `<ConsolidatedFilesContext>\n${folderTreeXML}\n${codeXML}\n</ConsolidatedFilesContext>`;
