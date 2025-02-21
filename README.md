@@ -9,8 +9,8 @@ Quickly copy selected files and code snippets into a structured XML format. Avoi
 
 ## Demo  
 
-![File Consolidation in Action](media/demo.gif)  
-![Snippet Tracking in Action](media/snippet_demo.gif)  
+![Context Consolidator Demo](https://i.imgur.com/CUsdJzn.gif)
+
 
 ## Features  
 
