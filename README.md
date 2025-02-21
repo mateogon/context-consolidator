@@ -1,73 +1,90 @@
-# Context Consolidator
+# Context Consolidator  
 
-Instantly copy the actual contents of the files you need—no more tedious, manual copying. Context Consolidator lets you gather, format, and copy an ordered snapshot of your project's files with a single click, saving you time and streamlining your workflow.
+Instantly capture and organize project files and code snippets—no more manual copying. Context Consolidator gathers, formats, and copies an ordered snapshot of your project's files with a single click, saving you time and streamlining your workflow.
 
-## Main Benefit
+## Main Benefit  
 
-**One-Click Aggregation:**  
-With just one click, copy the ordered and formatted contents of selected files and folders. Skip the hassle of manual copying—get a complete, XML-wrapped snapshot of your project context instantly!
+**One-Click Context Collection:**  
+Quickly copy selected files and code snippets into a structured XML format. Avoid tedious manual selection—get a complete, well-organized snapshot of your project in seconds!
 
-## Demo
+## Demo  
 
-![Context Consolidator in Action](media/demo.gif)
+![File Consolidation in Action](media/demo.gif)  
+![Snippet Tracking in Action](media/snippet_demo.gif)  
 
-## Features
+## Features  
 
-- 🤖 **AI-Friendly Aggregation:**  
-  Automatically wraps file paths and contents in XML tags for enhanced LLM parsing and analysis.
-- 🚀 **Rapid Context Gathering:**  
-  Easily select individual files or entire folders in one click.
-- 🖱️ **Persistent File List:**  
-  Manage your selection seamlessly—add or remove files without closing the menu.
+- 🤖 **AI-Optimized Formatting:**  
+  Automatically wraps file paths, code, and snippets in XML for seamless LLM parsing and analysis.  
+- 🚀 **Fast Context Gathering:**  
+  Instantly add files, folders, or specific code snippets to your selection.  
+- ✨ **Live Snippet Tracking:**  
+  Snippets automatically adjust as you modify your code, keeping them updated without manual intervention.  
+- 🖱️ **Persistent File & Snippet List:**  
+  Manage your selection easily—add or remove files and snippets dynamically.  
 - ⌨️ **Hotkey Support:**  
-  Trigger consolidation instantly using the default hotkey `Ctrl+Alt+C` (or `Cmd+Alt+C` on Mac).
-- 📊 **Real-Time Tracking:**  
-  Monitor the number of files queued for consolidation.
-- 🔍 **Detailed Project Snapshot:**  
-  Generate a complete XML snapshot that includes file paths and file content.
+  Trigger consolidation instantly using `Ctrl+Alt+C` (or `Cmd+Alt+C` on Mac).  
+- 📊 **Real-Time Overview:**  
+  Track the number of selected files and snippets in the status bar.  
+- 🔍 **Complete Project Snapshot:**  
+  Generate an XML-formatted summary of both files and snippets, preserving their structure and contents.
 
-## How It Works
+## How It Works  
+
+### 📂 File & Folder Consolidation  
 
 1. **Select Files/Folders:**  
-   - **Right-Click a Folder:** Choose **"Add to consolidated list"** to add a folder.  
-   - **Add Folder Contents:** When you add a folder, all files within that folder are automatically added to the list.
+   - **Right-click a Folder:** Choose **"Add to consolidated list"** to include all its files.  
+   - **Select Individual Files:** Right-click a file and add it to your list.  
 
 2. **Manage Your List:**  
-   - Look at the bottom status bar for **"Files to consolidate (n)"**.  
-   - Click this status bar item to open the consolidation menu.  
-   - In the menu, delete unwanted files by clicking them.
+   - See **"Files to consolidate (n)"** in the status bar.  
+   - Click the status bar to open the consolidation menu and remove unwanted files.  
 
 3. **Consolidate with One Click:**  
-   - In the menu, click **"Consolidate All"** to instantly copy the complete XML snapshot of your selected files to your clipboard.
+   - Click **"Consolidate All"** in the menu to copy the full XML-formatted snapshot to your clipboard.  
 
-### XML Structure Example
+### ✂️ Snippet Consolidation  
+
+1. **Highlight a Code Snippet:**  
+   - Select any block of code and right-click **"Add Selection to Consolidate List."**  
+   - The snippet is now tracked separately, along with its file name and line numbers.  
+
+2. **Automatic Snippet Tracking:**  
+   - If you edit your document, the snippet range adjusts dynamically.  
+   - Insert lines above, inside, or around it—your selection stays accurate.  
+
+3. **Consolidate Updated Snippets:**  
+   - When you consolidate, snippets reflect their latest state in the document.  
+   - They appear alongside full files in the XML snapshot, preserving their position.  
+
+### XML Structure Example  
 
 ```xml
 <ConsolidatedFilesContext>
   <FolderTree>
     path/to/file1.ts
-    path/to/file2.js
   </FolderTree>
   <Code file="path/to/file1.ts">
-    // File 1 content...
+    // Full file content...
   </Code>
-  <Code file="path/to/file2.js">
-    // File 2 content...
+  <Code file="path/to/file1.ts" snippet="lines 10-15">
+    // Snippet content...
   </Code>
 </ConsolidatedFilesContext>
 ```
 
-## Supported Workflows
+## Supported Workflows  
 
 - **Efficient Code Review & Debugging:**  
-  Quickly share a comprehensive project snapshot for streamlined reviews and debugging.
-- **Clear Project Explanations:**  
-  Provide context-rich details to assist AI-powered analysis or team discussions.
-- **Smooth Architecture Discussions:**  
-  Present a complete overview of your project's structure for high-level planning and design talks.
+  Track key snippets and file context without copy-pasting manually.  
+- **Clear AI-Powered Explanations:**  
+  Provide structured input for AI models, keeping code context intact.  
+- **Seamless Collaboration:**  
+  Share precise, updated code excerpts in discussions, documentation, or pull requests.  
 
-## Requirements
+## Requirements  
 
-- VS Code 1.96.0 or newer
+- VS Code 1.96.0 or newer  
 
-Happy coding!
+Happy coding! 🚀  

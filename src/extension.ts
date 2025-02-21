@@ -1,21 +1,28 @@
 import * as vscode from 'vscode';
-import DiffMatchPatch from 'diff-match-patch';
+import * as testModule from './extension_test';
+import * as DiffMatchPatch from 'diff-match-patch';
+import * as path from 'path';
 
 interface ConsolidateItem {
   type: 'file' | 'snippet';
   uri: string;
-  range?: vscode.Range; // originally selected range
-  text?: string;        // snapshot of the selected snippet
+  range?: vscode.Range; // Dynamically updated based on changes
+  originalText?: string; // Original snippet text for diff comparison
+  text?: string;        // Current snapshot of the snippet
   contextBefore?: string;
   contextAfter?: string;
 }
+
+// Map to store original document text per file
+const originalDocTexts: Map<string, string> = new Map();
+
 let consolidateItems: ConsolidateItem[] = [];
 let statusBarItem: vscode.StatusBarItem;
 
-// Global diff-match-patch instance.
-const dmp = new DiffMatchPatch();
+// Initialize diff-match-patch instance
+const dmp = new DiffMatchPatch.diff_match_patch();
 
-// Decoration for snippet highlights.
+// Decoration for snippet highlights
 const snippetDecorationType = vscode.window.createTextEditorDecorationType({
   backgroundColor: 'rgba(255,255,0,0.3)'
 });
@@ -72,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Add Snippet – update highlights immediately.
+  // Add Snippet
   context.subscriptions.push(
     vscode.commands.registerCommand('extension.addSnippetToConsolidateList', () => {
       const editor = vscode.window.activeTextEditor;
@@ -83,7 +90,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
       const range = new vscode.Range(selection.start, selection.end);
-      const text = editor.document.getText(range);
+      const originalText = editor.document.getText(range);
       let contextBefore = "";
       let contextAfter = "";
       if (selection.start.line > 0) {
@@ -92,17 +99,23 @@ export function activate(context: vscode.ExtensionContext) {
       if (selection.end.line < editor.document.lineCount - 1) {
         contextAfter = editor.document.lineAt(selection.end.line + 1).text;
       }
+      // Store the original document text if not already stored
+      const uriStr = editor.document.uri.toString();
+      if (!originalDocTexts.has(uriStr)) {
+        originalDocTexts.set(uriStr, editor.document.getText());
+      }
       consolidateItems.push({
         type: 'snippet',
-        uri: editor.document.uri.toString(),
+        uri: uriStr,
         range,
-        text,
+        originalText,
+        text: originalText,
         contextBefore,
         contextAfter
       });
       updateStatusBar();
       updateHighlightsForDocument(editor.document);
-    })    
+    })
   );
 
   // Show Menu
@@ -141,7 +154,6 @@ export function activate(context: vscode.ExtensionContext) {
         } else if (item.action === 'clear') {
           consolidateItems = [];
           updateStatusBar();
-          // Clear highlights from all visible editors.
           vscode.window.visibleTextEditors.forEach(editor => {
             editor.setDecorations(snippetDecorationType, []);
           });
@@ -149,7 +161,6 @@ export function activate(context: vscode.ExtensionContext) {
         } else if (item.action === 'remove' && typeof item.index === 'number') {
           const removed = consolidateItems.splice(item.index, 1)[0];
           updateStatusBar();
-          // If a snippet was removed, update highlights for that document.
           if (removed.type === 'snippet') {
             const doc = vscode.window.visibleTextEditors.find(e => e.document.uri.toString() === removed.uri);
             if (doc) updateHighlightsForDocument(doc.document);
@@ -162,71 +173,97 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Update snippet highlights on document changes.
+  // Track snippet ranges using the new line-by-line strategy.
   context.subscriptions.push(
-    vscode.workspace.onDidChangeTextDocument(e => {
-      updateHighlightsForDocument(e.document);
+    vscode.workspace.onDidChangeTextDocument((e: vscode.TextDocumentChangeEvent) => {
+      const document = e.document;
+      const docUri = document.uri.toString();
+      const snippetItems = consolidateItems.filter(
+        item => item.type === 'snippet' && item.uri === docUri
+      );
+      if (snippetItems.length === 0) return;
+
+      snippetItems.forEach(item => adjustSnippetRange(item, document));
+      updateHighlightsForDocument(document);
     })
   );
 
-  // Register a FileDecorationProvider to mark files in the Explorer.
+  // Register FileDecorationProvider
   context.subscriptions.push(
     vscode.window.registerFileDecorationProvider(new ConsolidatedFileDecorationProvider())
   );
+  // Register your test command.
+    let disposable = vscode.commands.registerCommand('extension_test.runTests', () => {
+      testModule.runTests();
+    });
+    context.subscriptions.push(disposable);
 }
 
 function updateStatusBar() {
   statusBarItem.text = `Items to Consolidate (${consolidateItems.length})`;
 }
-function updateSnippetFull(item: ConsolidateItem, doc: vscode.TextDocument): { updatedText: string, newRange: vscode.Range } {
-  const content = doc.getText();
-  // Find start offset: if contextBefore is found, assume snippet begins right after it.
-  let startOffset: number;
-  if (item.contextBefore && item.contextBefore.length > 0) {
-    const idx = content.indexOf(item.contextBefore);
-    startOffset = idx !== -1 ? idx + item.contextBefore.length : doc.offsetAt(item.range!.start);
-  } else {
-    startOffset = doc.offsetAt(item.range!.start);
-  }
-  // Find end offset: if contextAfter is found after the start, assume snippet ends just before it.
-  let endOffset: number;
-  if (item.contextAfter && item.contextAfter.length > 0) {
-    const idx = content.indexOf(item.contextAfter, startOffset);
-    endOffset = idx !== -1 ? idx : doc.offsetAt(item.range!.end);
-  } else {
-    endOffset = doc.offsetAt(item.range!.end);
-  }
-  // Optionally, extend to full lines by converting offsets to positions.
-  const newStart = doc.positionAt(startOffset);
-  const newEnd = doc.positionAt(endOffset);
-  const updatedText = doc.getText(new vscode.Range(newStart, newEnd));
-  return { updatedText, newRange: new vscode.Range(newStart, newEnd) };
-}
-
 
 /**
- * Updates snippet highlights for the given document.
- * Finds all snippet items for the document, runs diff-match-patch to re-locate them,
- * and then sets decorations accordingly.
+ * Adjusts the snippet range using a line-by-line strategy.
+ * It splits the original snippet and the current document text into lines,
+ * finds the first and last lines of the snippet (trimmed), and remaps the snippet's range.
  */
-function updateHighlightsForDocument(document: vscode.TextDocument) {
-  const docUri = document.uri.toString();
-  const snippetItems = consolidateItems.filter(item => item.type === 'snippet' && item.uri === docUri);
-  let newRanges: vscode.Range[] = [];
-  snippetItems.forEach(item => {
-    // Use stored range start as an approximate location.
-    const approxLoc = document.offsetAt(item.range!.start);
-    const matchIndex = dmp.match_main(document.getText(), item.text!, approxLoc);
-    if (matchIndex >= 0) {
-      const newStart = document.positionAt(matchIndex);
-      const newEnd = document.positionAt(matchIndex + item.text!.length);
-      const newRange = new vscode.Range(newStart, newEnd);
-      // Update the stored range.
-      item.range = newRange;
-      newRanges.push(newRange);
+function adjustSnippetRange(item: ConsolidateItem, document: vscode.TextDocument): void {
+  if (item.type !== 'snippet' || !item.range || !item.originalText) return;
+
+  const originalLines = item.originalText.split('\n').map(line => line.trim());
+  const currentLines = document.getText().split('\n');
+
+  // Use the first and last non-empty lines from the original snippet
+  const firstLine = originalLines.find(line => line.length > 0);
+  const lastLine = [...originalLines].reverse().find(line => line.length > 0);
+  if (!firstLine || !lastLine) {
+    console.log(`Snippet has no valid lines in ${item.uri}`);
+    return;
+  }
+
+  let newStartLine = -1;
+  let newEndLine = -1;
+
+  // Find the first occurrence of the first line in the current document
+  for (let i = 0; i < currentLines.length; i++) {
+    if (currentLines[i].trim() === firstLine) {
+      newStartLine = i;
+      break;
     }
-  });
-  // Update decorations in all visible editors for this document.
+  }
+  // Find the last occurrence of the last line in the current document
+  for (let i = currentLines.length - 1; i >= 0; i--) {
+    if (currentLines[i].trim() === lastLine) {
+      newEndLine = i;
+      break;
+    }
+  }
+
+  if (newStartLine === -1 || newEndLine === -1) {
+    console.log(`Snippet could not be located in ${item.uri}`);
+    return;
+  }
+
+  const newStartPos = new vscode.Position(newStartLine, 0);
+  const newEndPos = new vscode.Position(newEndLine, currentLines[newEndLine].length);
+  item.range = new vscode.Range(newStartPos, newEndPos);
+  item.text = document.getText(item.range);
+  console.log(`Adjusted snippet for ${item.uri}: lines ${newStartLine + 1}-${newEndLine + 1}`);
+}
+
+/**
+ * Updates highlights for snippets in the given document.
+ */
+function updateHighlightsForDocument(document: vscode.TextDocument): void {
+  const docUri = document.uri.toString();
+  const snippetItems = consolidateItems.filter(
+    item => item.type === 'snippet' && item.uri === docUri
+  );
+  const newRanges: vscode.Range[] = snippetItems
+    .filter(item => item.range)
+    .map(item => item.range!);
+
   vscode.window.visibleTextEditors
     .filter(editor => editor.document.uri.toString() === docUri)
     .forEach(editor => {
@@ -234,8 +271,10 @@ function updateHighlightsForDocument(document: vscode.TextDocument) {
     });
 }
 
+/**
+ * Consolidates files and snippets into XML format.
+ */
 async function consolidateFiles() {
-  // Build a cache of open documents.
   const docCache: { [uri: string]: vscode.TextDocument } = {};
   for (const item of consolidateItems) {
     if (!docCache[item.uri]) {
@@ -243,47 +282,37 @@ async function consolidateFiles() {
         const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(item.uri));
         docCache[item.uri] = doc;
       } catch (e) {
-        // Ignore errors.
+        console.error(`Failed to open document ${item.uri}: ${e}`);
       }
     }
   }
-  // Create folder tree XML.
   const uniqueUris = new Set(consolidateItems.map(item => item.uri));
   const fileList = Array.from(uniqueUris)
     .map(uri => vscode.workspace.asRelativePath(vscode.Uri.parse(uri)))
     .join('\n');
   const folderTreeXML = `<FolderTree>\n${fileList}\n</FolderTree>`;
 
-  // Use diff-match-patch to re-locate snippet ranges for consolidation.
   const codeXML = consolidateItems.map(item => {
     const uri = vscode.Uri.parse(item.uri);
-    const path = vscode.workspace.asRelativePath(uri);
+    const relPath = vscode.workspace.asRelativePath(uri);
     if (item.type === 'file') {
       const doc = docCache[item.uri];
-      if (!doc) return `<!-- Could not open file: ${path} -->`;
-      return `<Code file="${path}">\n${doc.getText()}\n</Code>`;
+      if (!doc) return `<!-- Could not open file: ${relPath} -->`;
+      return `<Code file="${relPath}">\n${doc.getText()}\n</Code>`;
     } else {
-      let snippetText = item.text!;
-      let startLine = item.range!.start.line + 1;
-      let endLine = item.range!.end.line + 1;
       const doc = docCache[item.uri];
-      if (doc) {
-        const { updatedText, newRange } = updateSnippetFull(item, doc);
-        snippetText = updatedText;
-        startLine = newRange.start.line + 1;
-        endLine = newRange.end.line + 1;
-        item.range = newRange;
-      }
-      return `<Code file="${path}" snippet="lines ${startLine}-${endLine}">\n${snippetText}\n</Code>`;
+      if (!doc || !item.range) return `<!-- Invalid snippet: ${relPath} -->`;
+      const validatedRange = doc.validateRange(item.range);
+      const snippetText = doc.getText(validatedRange);
+      const startLine = validatedRange.start.line + 1;
+      const endLine = validatedRange.end.line + 1;
+      return `<Code file="${relPath}" snippet="lines ${startLine}-${endLine}">\n${snippetText}\n</Code>`;
     }
-    
-    
   }).join('\n');
 
   const finalContent = `<ConsolidatedFilesContext>\n${folderTreeXML}\n${codeXML}\n</ConsolidatedFilesContext>`;
   await vscode.env.clipboard.writeText(finalContent);
 
-  // Stats
   let totalLines = 0, totalChars = 0;
   consolidateItems.forEach(item => {
     if (item.type === 'file') {
@@ -292,9 +321,13 @@ async function consolidateFiles() {
         totalLines += doc.lineCount;
         totalChars += doc.getText().length;
       }
-    } else {
-      totalLines += item.text!.split('\n').length;
-      totalChars += item.text!.length;
+    } else if (item.range) {
+      const doc = docCache[item.uri];
+      if (doc) {
+        const validatedRange = doc.validateRange(item.range);
+        totalLines += validatedRange.end.line - validatedRange.start.line + 1;
+        totalChars += doc.getText(validatedRange).length;
+      }
     }
   });
   vscode.window.showInformationMessage(
@@ -302,7 +335,7 @@ async function consolidateFiles() {
   );
 }
 
-// FileDecorationProvider: Marks consolidated files in the Explorer.
+// FileDecorationProvider: Marks consolidated files in the Explorer
 class ConsolidatedFileDecorationProvider implements vscode.FileDecorationProvider {
   private _onDidChangeFileDecorations = new vscode.EventEmitter<vscode.Uri | vscode.Uri[]>();
   readonly onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;
@@ -313,4 +346,8 @@ class ConsolidatedFileDecorationProvider implements vscode.FileDecorationProvide
     }
     return undefined;
   }
+}
+
+export function deactivate() {
+  // Clean up if necessary
 }
