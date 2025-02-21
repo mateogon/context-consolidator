@@ -2,13 +2,14 @@ import * as vscode from 'vscode';
 import * as testModule from './extension_test';
 import * as DiffMatchPatch from 'diff-match-patch';
 import * as path from 'path';
+import { encode } from 'gpt-tokenizer/model/gpt-4o';
 
 interface ConsolidateItem {
   type: 'file' | 'snippet';
   uri: string;
   range?: vscode.Range; // Dynamically updated based on changes
-  originalText?: string; // Original snippet text for diff comparison
-  text?: string;        // Current snapshot of the snippet
+  originalText?: string; // For snippets: original snippet text; for files, file text
+  text?: string;        // Current snapshot of the snippet (if applicable)
   contextBefore?: string;
   contextAfter?: string;
 }
@@ -37,9 +38,131 @@ interface ConsolidatorQuickPickItem extends vscode.QuickPickItem {
   index?: number;
 }
 
+// Enhanced algorithm: For each original line, try exact match; if not found, use fuzzy match with candidate proximity check.
+function adjustSnippetRangeLineByLineHybridEnhanced(item: ConsolidateItem, document: vscode.TextDocument): void {
+  if (item.type !== 'snippet' || !item.originalText) return;
+
+  const fullText = document.getText();
+  const docLines = fullText.split('\n');
+  const origLines = item.originalText.split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0);
+  if (origLines.length === 0) {
+    console.log("EnhancedHybrid: No valid lines in original snippet.");
+    return;
+  }
+  
+  const matchedOffsets: number[] = [];
+  let searchStartOffset = 0; // absolute offset for monotonicity
+  
+  // Set a relaxed threshold for fuzzy matching.
+  dmp.Match_Threshold = 0.8;
+  // Define a threshold (in characters) for candidate rejection when prior matches exist.
+  const candidateProximityThreshold = 50;
+  
+  console.log("EnhancedHybrid: Matching each original line:");
+  for (let idx = 0; idx < origLines.length; idx++) {
+    const origLine = origLines[idx];
+    let foundOffset = -1;
+    // Attempt exact match from current searchStartOffset.
+    const startLine = document.positionAt(searchStartOffset).line;
+    for (let i = startLine; i < docLines.length; i++) {
+      if (docLines[i].trim() === origLine) {
+        foundOffset = document.offsetAt(new vscode.Position(i, 0));
+        console.log(`   Line ${idx + 1}: Expected "${origLine}" EXACT match at doc line ${i + 1} (offset ${foundOffset}).`);
+        break;
+      }
+    }
+    // If not found exactly, try fuzzy match.
+    if (foundOffset === -1) {
+      const approxOffset = dmp.match_main(fullText, origLine, searchStartOffset);
+      if (approxOffset !== -1 && approxOffset >= searchStartOffset) {
+        // If we already have some matches, compute the median of them.
+        if (matchedOffsets.length > 0) {
+          const sorted = [...matchedOffsets].sort((a, b) => a - b);
+          const median = sorted[Math.floor(sorted.length / 2)];
+          const diff = Math.abs(approxOffset - median);
+          console.log(`   Line ${idx + 1}: Expected "${origLine}" FUZZY candidate at offset ${approxOffset} (diff ${diff}).`);
+          if (diff <= candidateProximityThreshold) {
+            foundOffset = approxOffset;
+            console.log(`         Accepting candidate (within threshold).`);
+          } else {
+            console.log(`         Rejecting candidate (diff too high).`);
+          }
+        } else {
+          // For the very first line, no previous match exists.
+          foundOffset = approxOffset;
+          console.log(`   Line ${idx + 1}: Expected "${origLine}" FUZZY match at offset ${foundOffset}.`);
+        }
+      } else {
+        console.log(`   Line ${idx + 1}: Expected "${origLine}" NOT found (offset -1).`);
+      }
+    }
+    // Record offset if valid and ensure monotonicity.
+    if (foundOffset !== -1 && (matchedOffsets.length === 0 || foundOffset >= matchedOffsets[matchedOffsets.length - 1])) {
+      matchedOffsets.push(foundOffset);
+      searchStartOffset = foundOffset + origLine.length;
+    } else {
+      matchedOffsets.push(-1);
+    }
+  }
+  
+  const validMatches = matchedOffsets.filter(offset => offset >= 0);
+  const matchRatio = validMatches.length / origLines.length;
+  console.log(`EnhancedHybrid: Matched ${Math.round(matchRatio * 100)}% of expected lines.`);
+  
+  if (matchRatio < 0.8) {
+    console.log(`EnhancedHybrid: Low match ratio; falling back to simple algorithm.`);
+    adjustSnippetRangeSimple(item, document);
+    return;
+  }
+  
+  const firstOffset = Math.min(...validMatches);
+  const lastOffset = Math.max(...validMatches);
+  
+  const startLineFinal = document.positionAt(firstOffset).line;
+  const endLineFinal = document.positionAt(lastOffset).line;
+  
+  const newStartPos = new vscode.Position(startLineFinal, 0);
+  const newEndPos = new vscode.Position(endLineFinal, docLines[endLineFinal].length);
+  item.range = new vscode.Range(newStartPos, newEndPos);
+  item.text = document.getText(item.range);
+  
+  console.log(`EnhancedHybrid: Final snippet boundaries: lines ${startLineFinal + 1}-${endLineFinal + 1}`);
+}
+
+// A simple fallback exact-match algorithm.
+function adjustSnippetRangeSimple(item: ConsolidateItem, document: vscode.TextDocument): void {
+  const docLines = document.getText().split('\n');
+  const originalLines = (item.originalText || "").split('\n').map(line => line.trim());
+  const firstMarker = originalLines.find(line => line.length > 0);
+  const lastMarker = [...originalLines].reverse().find(line => line.length > 0);
+  let newStartLine = -1;
+  let newEndLine = -1;
+  for (let i = 0; i < docLines.length; i++) {
+    if (docLines[i].trim() === firstMarker) {
+      newStartLine = i;
+      break;
+    }
+  }
+  for (let i = docLines.length - 1; i >= 0; i--) {
+    if (docLines[i].trim() === lastMarker) {
+      newEndLine = i;
+      break;
+    }
+  }
+  if (newStartLine === -1) newStartLine = 0;
+  if (newEndLine === -1) newEndLine = docLines.length - 1;
+  const newStartPos = new vscode.Position(newStartLine, 0);
+  const newEndPos = new vscode.Position(newEndLine, docLines[newEndLine].length);
+  item.range = new vscode.Range(newStartPos, newEndPos);
+  item.text = document.getText(item.range);
+  console.log(`Simple: Adjusted snippet for ${item.uri}: lines ${newStartLine + 1}-${newEndPos.line + 1}`);
+}
+
 export function activate(context: vscode.ExtensionContext) {
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-  statusBarItem.text = "Items to Consolidate (0)";
+  statusBarItem.text = "Snapshot: 0 items";
   statusBarItem.command = 'extension.showConsolidateMenu';
   context.subscriptions.push(statusBarItem);
   statusBarItem.show();
@@ -61,7 +184,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('extension.addFolderToConsolidateList', async (uri: vscode.Uri) => {
       if (!uri) return;
       const files = await vscode.workspace.findFiles(new vscode.RelativePattern(uri.fsPath, '**/*'));
-      files.forEach(file => consolidateItems.push({ type: 'file', uri: file.toString() }));
+      files.forEach(file => {
+        vscode.workspace.openTextDocument(file).then(doc => {
+          originalDocTexts.set(file.toString(), doc.getText());
+        });
+        consolidateItems.push({ type: 'file', uri: file.toString() });
+      });
       updateStatusBar();
     })
   );
@@ -73,6 +201,12 @@ export function activate(context: vscode.ExtensionContext) {
         const editor = vscode.window.activeTextEditor;
         if (!editor) return;
         uri = editor.document.uri;
+      }
+      try {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        originalDocTexts.set(uri.toString(), doc.getText());
+      } catch (e) {
+        console.error(e);
       }
       consolidateItems.push({ type: 'file', uri: uri.toString() });
       updateStatusBar();
@@ -99,7 +233,6 @@ export function activate(context: vscode.ExtensionContext) {
       if (selection.end.line < editor.document.lineCount - 1) {
         contextAfter = editor.document.lineAt(selection.end.line + 1).text;
       }
-      // Store the original document text if not already stored
       const uriStr = editor.document.uri.toString();
       if (!originalDocTexts.has(uriStr)) {
         originalDocTexts.set(uriStr, editor.document.getText());
@@ -173,7 +306,7 @@ export function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Track snippet ranges using the new line-by-line strategy.
+  // Track snippet ranges using our enhanced algorithm.
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((e: vscode.TextDocumentChangeEvent) => {
       const document = e.document;
@@ -182,8 +315,7 @@ export function activate(context: vscode.ExtensionContext) {
         item => item.type === 'snippet' && item.uri === docUri
       );
       if (snippetItems.length === 0) return;
-
-      snippetItems.forEach(item => adjustSnippetRange(item, document));
+      snippetItems.forEach(item => adjustSnippetRangeLineByLineHybridEnhanced(item, document));
       updateHighlightsForDocument(document);
     })
   );
@@ -193,68 +325,37 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.window.registerFileDecorationProvider(new ConsolidatedFileDecorationProvider())
   );
   // Register your test command.
-    let disposable = vscode.commands.registerCommand('extension_test.runTests', () => {
-      testModule.runTests();
-    });
-    context.subscriptions.push(disposable);
+  let disposable = vscode.commands.registerCommand('extension_test.runTests', () => {
+    testModule.runTestSuite();
+  });
+  context.subscriptions.push(disposable);
 }
 
 function updateStatusBar() {
-  statusBarItem.text = `Items to Consolidate (${consolidateItems.length})`;
+  let totalItems = consolidateItems.length;
+  let contentLines = 0;
+  let totalTokens = 0;
+
+  consolidateItems.forEach(item => {
+    if (item.type === 'snippet' && item.range) {
+      const text = item.text || "";
+      contentLines += (item.range.end.line - item.range.start.line + 1);
+      totalTokens += encode(text).length;
+    } else if (item.type === 'file') {
+      const fileText = originalDocTexts.get(item.uri);
+      if (fileText) {
+        const lines = fileText.split('\n');
+        contentLines += lines.length;
+        totalTokens += encode(fileText).length;
+      }
+    }
+  });
+
+  const overhead = 3 + (2 * totalItems);
+  const totalApprox = contentLines + overhead;
+  statusBarItem.text = `Consolidated: ${totalItems} items | ${totalApprox} lines | ${totalTokens} tokens`;
 }
 
-/**
- * Adjusts the snippet range using a line-by-line strategy.
- * It splits the original snippet and the current document text into lines,
- * finds the first and last lines of the snippet (trimmed), and remaps the snippet's range.
- */
-function adjustSnippetRange(item: ConsolidateItem, document: vscode.TextDocument): void {
-  if (item.type !== 'snippet' || !item.range || !item.originalText) return;
-
-  const originalLines = item.originalText.split('\n').map(line => line.trim());
-  const currentLines = document.getText().split('\n');
-
-  // Use the first and last non-empty lines from the original snippet
-  const firstLine = originalLines.find(line => line.length > 0);
-  const lastLine = [...originalLines].reverse().find(line => line.length > 0);
-  if (!firstLine || !lastLine) {
-    console.log(`Snippet has no valid lines in ${item.uri}`);
-    return;
-  }
-
-  let newStartLine = -1;
-  let newEndLine = -1;
-
-  // Find the first occurrence of the first line in the current document
-  for (let i = 0; i < currentLines.length; i++) {
-    if (currentLines[i].trim() === firstLine) {
-      newStartLine = i;
-      break;
-    }
-  }
-  // Find the last occurrence of the last line in the current document
-  for (let i = currentLines.length - 1; i >= 0; i--) {
-    if (currentLines[i].trim() === lastLine) {
-      newEndLine = i;
-      break;
-    }
-  }
-
-  if (newStartLine === -1 || newEndLine === -1) {
-    console.log(`Snippet could not be located in ${item.uri}`);
-    return;
-  }
-
-  const newStartPos = new vscode.Position(newStartLine, 0);
-  const newEndPos = new vscode.Position(newEndLine, currentLines[newEndLine].length);
-  item.range = new vscode.Range(newStartPos, newEndPos);
-  item.text = document.getText(item.range);
-  console.log(`Adjusted snippet for ${item.uri}: lines ${newStartLine + 1}-${newEndLine + 1}`);
-}
-
-/**
- * Updates highlights for snippets in the given document.
- */
 function updateHighlightsForDocument(document: vscode.TextDocument): void {
   const docUri = document.uri.toString();
   const snippetItems = consolidateItems.filter(
@@ -263,7 +364,6 @@ function updateHighlightsForDocument(document: vscode.TextDocument): void {
   const newRanges: vscode.Range[] = snippetItems
     .filter(item => item.range)
     .map(item => item.range!);
-
   vscode.window.visibleTextEditors
     .filter(editor => editor.document.uri.toString() === docUri)
     .forEach(editor => {
@@ -271,9 +371,6 @@ function updateHighlightsForDocument(document: vscode.TextDocument): void {
     });
 }
 
-/**
- * Consolidates files and snippets into XML format.
- */
 async function consolidateFiles() {
   const docCache: { [uri: string]: vscode.TextDocument } = {};
   for (const item of consolidateItems) {
@@ -291,7 +388,6 @@ async function consolidateFiles() {
     .map(uri => vscode.workspace.asRelativePath(vscode.Uri.parse(uri)))
     .join('\n');
   const folderTreeXML = `<FolderTree>\n${fileList}\n</FolderTree>`;
-
   const codeXML = consolidateItems.map(item => {
     const uri = vscode.Uri.parse(item.uri);
     const relPath = vscode.workspace.asRelativePath(uri);
@@ -309,10 +405,8 @@ async function consolidateFiles() {
       return `<Code file="${relPath}" snippet="lines ${startLine}-${endLine}">\n${snippetText}\n</Code>`;
     }
   }).join('\n');
-
   const finalContent = `<ConsolidatedFilesContext>\n${folderTreeXML}\n${codeXML}\n</ConsolidatedFilesContext>`;
   await vscode.env.clipboard.writeText(finalContent);
-
   let totalLines = 0, totalChars = 0;
   consolidateItems.forEach(item => {
     if (item.type === 'file') {
@@ -335,7 +429,6 @@ async function consolidateFiles() {
   );
 }
 
-// FileDecorationProvider: Marks consolidated files in the Explorer
 class ConsolidatedFileDecorationProvider implements vscode.FileDecorationProvider {
   private _onDidChangeFileDecorations = new vscode.EventEmitter<vscode.Uri | vscode.Uri[]>();
   readonly onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;

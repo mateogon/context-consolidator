@@ -11,7 +11,6 @@ Quickly copy selected files and code snippets into a structured XML format. Avoi
 
 ![Context Consolidator Demo](https://i.imgur.com/CUsdJzn.gif)
 
-
 ## Features  
 
 - 🤖 **AI-Optimized Formatting:**  

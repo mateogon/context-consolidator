@@ -93,7 +93,7 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
-    
-    "diff-match-patch": "^1.0.5"
+    "diff-match-patch": "^1.0.5",
+    "gpt-tokenizer": "^2.8.1"
   }
 }
