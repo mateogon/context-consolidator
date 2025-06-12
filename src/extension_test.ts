@@ -348,5 +348,6 @@ export function runTestSuite() {
   });
   const testG = testGLines.join('\n');
   runTestCase("Test G", testG);
+  
 }
 

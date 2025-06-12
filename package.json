@@ -7,7 +7,7 @@
     "type": "git",
     "url": "https://github.com/mateogon/file-consolidator.git"
   },
-  "version": "1.0.1",
+  "version": "1.1.0",
   "engines": {
     "vscode": "^1.96.0"
   },
@@ -42,6 +42,10 @@
       {
         "command": "extension_test.runTests",
         "title": "Run Consolidator Tests"
+      },
+      {
+        "command": "extension.saveConsolidationToFile",
+        "title": "Save Consolidated TXT to File"
       }
     ],
     "menus": {
