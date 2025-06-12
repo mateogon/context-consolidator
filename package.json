@@ -7,7 +7,13 @@
     "type": "git",
     "url": "https://github.com/mateogon/file-consolidator.git"
   },
-  "version": "1.1.0",
+  "icon": "icon.png",
+  "version": "1.1.1",
+  "activationEvents": [
+  "onStartupFinished",
+  "onCommand:extension.showConsolidateMenu"
+],
+
   "engines": {
     "vscode": "^1.96.0"
   },
