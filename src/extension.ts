@@ -68,16 +68,22 @@ function itemTokenCount(item: ConsolidateItem): number {
   }
   return encode(item.text).length;
 }
-
+function itemLineCount(item: ConsolidateItem): number {
+  if (item.type === 'file') {
+    const txt = originalDocTexts.get(item.uri);
+    return txt ? txt.split('\n').length : 0;
+  }
+  return item.range.end.line - item.range.start.line + 1;
+}
 function calcTotals() {
   let tok = 0;
   for (const it of consolidateItems) tok += itemTokenCount(it);
   return tok || 1; // evita /0
 }
 
-function weightEmoji(fraction: number): string {
-  if (fraction >= 0.4) return '🔴';
-  if (fraction >= 0.15) return '🟡';
+function weightEmojiDynamic(tokens: number, lines: number, fraction: number, avgTok: number): string {
+  if (tokens >= 7500 || lines >= 800 || fraction >= 0.4 || tokens >= avgTok * 2) return '🔴';
+  if (tokens >= 2500 || lines >= 400 || fraction >= 0.15 || tokens >= avgTok) return '🟡';
   return '🟢';
 }
 function getConsolidateHotkey(): string {
@@ -470,11 +476,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
         const rows = (() => {
         const totalTok = calcTotals();
+        const avgTok = totalTok / consolidateItems.length || 0;
+
         return consolidateItems.map((item, idx) => {
           const rel = vscode.workspace.asRelativePath(vscode.Uri.parse(item.uri));
           const tok = itemTokenCount(item);
+          const lines = itemLineCount(item);
           const pct = ((tok / totalTok) * 100).toFixed(1);
-          const emoji = weightEmoji(tok / totalTok);
+          const emoji = weightEmojiDynamic(tok, lines, tok / totalTok, avgTok);
           const tokensLabel = `${tok} tok (${pct}%)`;
 
           const labelCore =
