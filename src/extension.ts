@@ -60,6 +60,26 @@ const snippetDecorationType = vscode.window.createTextEditorDecorationType({
 /*───────────────────────────────────────────────────────────────────────────
   UTILITY FUNCTIONS
 ───────────────────────────────────────────────────────────────────────────*/
+/*──────────────── TOKEN HELPERS ────────────────*/
+function itemTokenCount(item: ConsolidateItem): number {
+  if (item.type === 'file') {
+    const txt = originalDocTexts.get(item.uri);
+    return txt ? encode(txt).length : 0;
+  }
+  return encode(item.text).length;
+}
+
+function calcTotals() {
+  let tok = 0;
+  for (const it of consolidateItems) tok += itemTokenCount(it);
+  return tok || 1; // evita /0
+}
+
+function weightEmoji(fraction: number): string {
+  if (fraction >= 0.4) return '🔴';
+  if (fraction >= 0.15) return '🟡';
+  return '🟢';
+}
 function getConsolidateHotkey(): string {
   return vscode.workspace
     .getConfiguration('contextConsolidator')
@@ -221,18 +241,14 @@ function updateHighlightsForDocument(doc: vscode.TextDocument) {
 }
 
 function updateStatusBar() {
-  let tokens = 0,
-    lines = 0;
-  consolidateItems.forEach((i) => {
+  let tokens = 0, lines = 0;
+  consolidateItems.forEach(i => {
+    tokens += itemTokenCount(i);
     if (i.type === 'file' && i.includeContent) {
       const txt = originalDocTexts.get(i.uri);
-      if (txt) {
-        lines += txt.split('\n').length;
-        tokens += encode(txt).length;
-      }
+      if (txt) lines += txt.split('\n').length;
     } else if (i.type === 'snippet') {
       lines += i.range.end.line - i.range.start.line + 1;
-      tokens += encode(i.text).length;
     }
   });
   statusBarItem.text = `Context 📦 ${consolidateItems.length} | ${lines} L | ${tokens} tok`;
@@ -452,18 +468,22 @@ export async function activate(context: vscode.ExtensionContext) {
           { label: '', kind: vscode.QuickPickItemKind.Separator } as any,
         ];
 
-        const rows = consolidateItems.map((item, idx) => {
-          const rel = vscode.workspace.asRelativePath(
-            vscode.Uri.parse(item.uri)
-          );
-          const label =
+        const rows = (() => {
+        const totalTok = calcTotals();
+        return consolidateItems.map((item, idx) => {
+          const rel = vscode.workspace.asRelativePath(vscode.Uri.parse(item.uri));
+          const tok = itemTokenCount(item);
+          const pct = ((tok / totalTok) * 100).toFixed(1);
+          const emoji = weightEmoji(tok / totalTok);
+          const tokensLabel = `${tok} tok (${pct}%)`;
+
+          const labelCore =
             item.type === 'file'
               ? `${rel}${item.includeContent ? '' : ' (skipped)'}`
-              : `${rel} (lines ${item.range.start.line + 1}-${
-                  item.range.end.line + 1
-                })`;
+              : `${rel} (lines ${item.range.start.line + 1}-${item.range.end.line + 1})`;
+
           return {
-            label: `$(trash) ${label}`,
+            label: `$(trash) ${emoji} ${labelCore} – ${tokensLabel}`,
             action: () => {
               consolidateItems.splice(idx, 1);
               updateStatusBar();
@@ -472,6 +492,7 @@ export async function activate(context: vscode.ExtensionContext) {
             },
           };
         });
+      })();
 
         qp.items = [...buttons, ...rows];
       };
@@ -482,7 +503,49 @@ export async function activate(context: vscode.ExtensionContext) {
       qp.show();
     })
   );
+  /*──────────────── toggle FILE(S) ───────────────*/
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'extension.toggleConsolidateItem',
+      async (uri: vscode.Uri | undefined, uris?: vscode.Uri[]) => {
+        const targets = (uris?.length ? uris : uri ? [uri] : []).filter(Boolean) as vscode.Uri[];
 
+        if (targets.length === 0 && vscode.window.activeTextEditor?.document) {
+          targets.push(vscode.window.activeTextEditor.document.uri);
+        }
+
+        for (const file of targets) {
+          const key = file.toString();
+          const pos = consolidateItems.findIndex(i => i.uri === key);
+
+          if (pos !== -1) {
+            // ya estaba ⇒ quitar
+            consolidateItems.splice(pos, 1);
+            originalDocTexts.delete(key);
+          } else {
+            // no estaba ⇒ añadir (misma lógica que antes)
+            const ext = path.extname(file.fsPath).toLowerCase();
+            let includeContent = !SKIP_CONTENT_EXTS.has(ext);
+            if (includeContent && (await isBinary(file))) includeContent = false;
+
+            if (includeContent) {
+              try {
+                const doc = await vscode.workspace.openTextDocument(file);
+                originalDocTexts.set(key, doc.getText());
+              } catch {
+                includeContent = false;
+              }
+            }
+
+            consolidateItems.push({ type: 'file', uri: key, includeContent });
+          }
+        }
+
+        updateStatusBar();
+        await persistFileItems(context);
+      }
+    )
+  );
   /*──────────────── DOC CHANGE → update snippets & bar ──────────*/
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((e) => {

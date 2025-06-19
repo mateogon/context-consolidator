@@ -10,10 +10,10 @@
   "icon": "icon.png",
   "version": "1.1.1",
   "activationEvents": [
-  "onStartupFinished",
-  "onCommand:extension.showConsolidateMenu"
-],
-
+    "onStartupFinished",
+    "onCommand:extension.showConsolidateMenu",
+    "onCommand:extension.toggleConsolidateItem"
+  ],
   "engines": {
     "vscode": "^1.96.0"
   },
@@ -52,6 +52,10 @@
       {
         "command": "extension.saveConsolidationToFile",
         "title": "Save Consolidated TXT to File"
+      },
+      {
+        "command": "extension.toggleConsolidateItem",
+        "title": "Add/Remove from Consolidation List"
       }
     ],
     "menus": {
@@ -60,16 +64,11 @@
           "command": "extension.addSnippetToConsolidateList",
           "group": "navigation",
           "when": "editorTextFocus && !editorReadonly"
-        },
-        {
-          "command": "extension.addToConsolidateList",
-          "group": "navigation",
-          "when": "editorTextFocus"
         }
       ],
       "explorer/context": [
         {
-          "command": "extension.addToConsolidateList",
+          "command": "extension.toggleConsolidateItem",
           "group": "navigation",
           "when": "resourceScheme == file && !explorerResourceIsFolder"
         },
