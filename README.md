@@ -3,6 +3,16 @@
 Instantly capture and organize project files and code snippets—no more manual copying.  
 Context Consolidator gathers, formats, and copies an ordered snapshot of your project’s files with a single click, saving you time and streamlining your workflow.
 
+## ✅ What’s New in v1.2.0
+
+| Feature | Why it matters |
+|---------|----------------|
+| 🚦 **Dynamic “Traffic-Light” Weights** | Each file/snippet in the menu now shows 🔴🟡🟢 based on *absolute* size (tokens/lines) **and** its share of the total. Big files stand out even in huge lists. |
+| 🏷️ **Live Token & % Labels** | Every row shows exact tokens + percentage of context so you can trim fat fast. |
+| 🖱️ **One Smart Explorer Button** | The old *Add* / *Remove* buttons are merged into a single **“Add/Remove from Consolidation List”** entry—always visible, never out of sync. |
+| 📈 **Auto-Adjusting Thresholds** | ≥ 7 500 tokens / 800 lines **or** ≥ 40 % of total ⇒ 🔴. Medium = ≥ 2 500 tokens / 400 lines **or** ≥ 15 %. Everything else is green. |
+| 🐞 **Misc Fixes & Polish** | Better icon alignment, faster status-bar updates, minor bug fixes. |
+
 ## ✅ What’s New in v1.1.0
 
 - 🗂️ **Multi-select file support:** Ctrl/Shift-click multiple files in the Explorer and add them all at once.
@@ -24,65 +34,35 @@ Avoid tedious manual selection—get a complete, well-organized snapshot of your
 
 ## ⚡ Features
 
-- 🤖 **AI-Optimized Formatting**  
-  Wraps file paths, code, and snippets in XML for seamless LLM parsing and analysis.
+- 🤖 **AI-Optimized XML Formatting**
+- 🚀 **Fast File / Folder / Snippet Gathering**
+- 🚦 **Color-Coded Weight Indicators** *(new!)*
+- 📊 **Exact Token & Percentage Stats** *(new!)*
+- 🚀 **Multi-Select Explorer Support**
+- ✂️ **Live Snippet Range Tracking**
+- 🧠 **Per-Workspace Persistence**
+- 📛 **Smart Binary & Junk Filtering**
+- 🖱️ **Single Add/Remove Context Menu** *(new!)*
+- 💾 **Copy to Clipboard or Save XML**
+- ⌨️ **Customizable Hotkey** (`Ctrl+Alt+C` / `Cmd+Alt+C`)
+- 📟 **Live Status Bar Counter**
 
-- 🚀 **Fast Context Gathering**  
-  Instantly add files, folders, or code snippets—individually or in bulk.
-
-- ✨ **Live Snippet Tracking**  
-  Snippets adjust automatically when you edit your code.
-
-- 🧠 **Persistent Per-Workspace State**  
-  File selection is saved per folder—you’ll pick up right where you left off.
-
-- 📛 **Smart File Filtering**  
-  Skips known binary formats and cache folders, reducing useless token bloat.
-
-- 🖱️ **Dynamic Context Menu**  
-  Right-click to manage files and folders directly from the Explorer.
-
-- 💾 **Copy or Save**  
-  Export the consolidated context to clipboard or a `.xml` file.
-
-- ⌨️ **Customizable Hotkey**  
-  Use `Ctrl+Alt+C` (`Cmd+Alt+C` on Mac) to open the consolidation menu instantly.
-
-- 📊 **Live Status Overview**  
-  Shows total files, lines, and estimated tokens in the status bar.
+---
 
 ## 🧪 How It Works
 
 ### 📂 File & Folder Consolidation
-
-1. **Select Files/Folders**  
-   - ✅ Ctrl/Shift-click multiple files  
-   - 📁 Right-click a folder → **"Add to Consolidate List"**
-
-2. **Smart Filtering**  
-   - 🚫 Skips binary-like files (e.g. `.png`, `.mp3`)  
-   - ❌ Ignores junk folders like `__pycache__`, `.git`, `node_modules`, `dist`
-
-3. **Manage Your List**  
-   - View total items in the **status bar**  
-   - Click it to open the **Consolidation Menu**  
-   - Remove individual files/snippets with a click
-
-4. **Export Context**  
-   - 📝 Click “Consolidate → Clipboard” to copy XML  
-   - 💾 Click “Save XML to file…” to export to disk
+1. **Select** files/folders (supports Ctrl/Shift multi-select).  
+2. **Right-click** → **Add/Remove from Consolidation List**.  
+3. **Review** the list via the *status-bar* Quick Pick:  
+   - 🔴🟡🟢 weight emoji  
+   - exact tokens & percentage  
+   - click any row’s 🗑️ icon to remove.  
+4. **Export** → *Clipboard* or *Save XML to file…*
 
 ### ✂️ Snippet Consolidation
-
-1. **Select Code**  
-   - Highlight a code block  
-   - Right-click → **"Add Selection to Consolidate List"**
-
-2. **Automatic Range Tracking**  
-   - Snippet updates live as you edit the document
-
-3. **Export Accurate Snippets**  
-   - Always reflects current content and line numbers
+Highlight code → right-click **Add Selection to Consolidate List**.  
+Snippets track edits automatically.
 
 ### 📄 Output Format (XML)
 
