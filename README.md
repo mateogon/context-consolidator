@@ -2,6 +2,12 @@
 
 Instantly capture and organize project files and code snippets—no more manual copying.  
 Context Consolidator gathers, formats, and copies an ordered snapshot of your project’s files with a single click, saving you time and streamlining your workflow.
+## ✅ What's New in v1.2.1
+
+| Feature | Why it matters |
+|---------|----------------|
+| 🐛 **Fixed Stale File Content Bug** | Files now always show current content when consolidating, not the content from when they were first added to the list. |
+| 🔄 **Real-time Content Updates** | Changes made to files are now properly reflected in consolidations without needing to re-add files. |
 
 ## ✅ What’s New in v1.2.0
 

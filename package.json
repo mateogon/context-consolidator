@@ -8,7 +8,7 @@
     "url": "https://github.com/mateogon/file-consolidator.git"
   },
   "icon": "icon.png",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "activationEvents": [
     "onStartupFinished",
     "onCommand:extension.showConsolidateMenu",

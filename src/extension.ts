@@ -260,32 +260,41 @@ function updateStatusBar() {
   statusBarItem.text = `Context 📦 ${consolidateItems.length} | ${lines} L | ${tokens} tok`;
 }
 
-function buildConsolidatedXML(): string {
+async function buildConsolidatedXML(): Promise<string> {
   const unique = [...new Set(consolidateItems.map((i) => i.uri))];
   const fileTree = unique
     .map((u) => vscode.workspace.asRelativePath(vscode.Uri.parse(u)))
     .join('\n');
   const folderTreeXML = `<FolderTree>\n${fileTree}\n</FolderTree>`;
 
-  const codeXML = consolidateItems
-    .map((item) => {
+  const codeXML = await Promise.all(
+    consolidateItems.map(async (item) => {
       const rel = vscode.workspace.asRelativePath(vscode.Uri.parse(item.uri));
       if (item.type === 'file') {
         if (!item.includeContent) return `<!-- ${rel} skipped -->`;
-        const txt = originalDocTexts.get(item.uri) ?? '';
-        return `<Code file="${rel}">\n${txt}\n</Code>`;
+        
+        // Read current file content instead of using cached version
+        try {
+          const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(item.uri));
+          const txt = doc.getText();
+          return `<Code file="${rel}">\n${txt}\n</Code>`;
+        } catch {
+          // Fallback to cached content if file can't be read
+          const txt = originalDocTexts.get(item.uri) ?? '';
+          return `<Code file="${rel}">\n${txt}\n</Code>`;
+        }
       } else {
         const { range } = item;
         return `<Code file="${rel}" snippet="lines ${range.start.line + 1}-${range.end.line + 1}">\n${item.text}\n</Code>`;
       }
     })
-    .join('\n');
-
-  return `<ConsolidatedFilesContext>\n${folderTreeXML}\n${codeXML}\n</ConsolidatedFilesContext>`;
+  );
+  
+  return `<ConsolidatedFilesContext>\n${folderTreeXML}\n${(await Promise.all(codeXML)).join('\n')}\n</ConsolidatedFilesContext>`;
 }
 
 async function consolidateToClipboard() {
-  await vscode.env.clipboard.writeText(buildConsolidatedXML());
+  await vscode.env.clipboard.writeText(await buildConsolidatedXML());
   vscode.window.showInformationMessage('Context copied to clipboard ✔');
 }
 
@@ -454,7 +463,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 filters: { TXT: ['txt'] },
               });
               if (!uri) return;
-              await fs.writeFile(uri.fsPath, buildConsolidatedXML(), 'utf8');
+              await fs.writeFile(uri.fsPath, await buildConsolidatedXML(), 'utf8');
               vscode.window.showInformationMessage('Context saved ✔');
               qp.hide();
             },
