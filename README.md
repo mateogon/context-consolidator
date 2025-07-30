@@ -2,6 +2,14 @@
 
 Instantly capture and organize project files and code snippets—no more manual copying.  
 Context Consolidator gathers, formats, and copies an ordered snapshot of your project’s files with a single click, saving you time and streamlining your workflow.
+## ✅ What's New in v1.3.0
+
+| Feature | Why it matters |
+|---|---|
+| 📂 **History & Presets** | Automatically save consolidation history and create reusable presets. |
+| 🎨 **New Manager UI** | A new Quick Pick UI to manage history and presets. |
+| 💾 **Live Preset Sync** | Presets are automatically updated as you add/remove files and snippets. |
+
 ## ✅ What's New in v1.2.1
 
 | Feature | Why it matters |

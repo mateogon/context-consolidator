@@ -13,21 +13,9 @@ import { encode } from 'gpt-tokenizer/model/gpt-4o';
 /*───────────────────────────────────────────────────────────────────────────
   TYPES
 ───────────────────────────────────────────────────────────────────────────*/
-interface ConsolidateItemFile {
-  type: 'file';
-  uri: string;              // vscode-URI string
-  includeContent: boolean;  // false ⇢ only mention path
-}
-interface ConsolidateItemSnippet {
-  type: 'snippet';
-  uri: string;
-  range: vscode.Range;
-  originalText: string;
-  text: string;
-  contextBefore?: string;
-  contextAfter?: string;
-}
-type ConsolidateItem = ConsolidateItemFile | ConsolidateItemSnippet;
+import { showManagerUI } from './managerUI';
+import { addHistorySnapshot, savePresets, loadPresets } from './lists';
+import { ConsolidateItem, ConsolidateItemFile, ConsolidateItemSnippet } from './types';
 
 /*───────────────────────────────────────────────────────────────────────────
   CONSTANTS
@@ -61,29 +49,29 @@ const snippetDecorationType = vscode.window.createTextEditorDecorationType({
   UTILITY FUNCTIONS
 ───────────────────────────────────────────────────────────────────────────*/
 /*──────────────── TOKEN HELPERS ────────────────*/
-function itemTokenCount(item: ConsolidateItem): number {
+export function itemTokenCount(item: ConsolidateItem): number {
   if (item.type === 'file') {
     const txt = originalDocTexts.get(item.uri);
     return txt ? encode(txt).length : 0;
   }
   return encode(item.text).length;
 }
-function itemLineCount(item: ConsolidateItem): number {
+export function itemLineCount(item: ConsolidateItem): number {
   if (item.type === 'file') {
     const txt = originalDocTexts.get(item.uri);
     return txt ? txt.split('\n').length : 0;
   }
   return item.range.end.line - item.range.start.line + 1;
 }
-function calcTotals() {
+export function calcTotals() {
   let tok = 0;
-  for (const it of consolidateItems) tok += itemTokenCount(it);
+  for (const it of consolidateItems) {tok += itemTokenCount(it);}
   return tok || 1; // evita /0
 }
 
-function weightEmojiDynamic(tokens: number, lines: number, fraction: number, avgTok: number): string {
-  if (tokens >= 7500 || lines >= 800 || fraction >= 0.4 || tokens >= avgTok * 2) return '🔴';
-  if (tokens >= 2500 || lines >= 400 || fraction >= 0.15 || tokens >= avgTok) return '🟡';
+export function weightEmojiDynamic(tokens: number, lines: number, fraction: number, avgTok: number): string {
+  if (tokens >= 7500 || lines >= 800 || fraction >= 0.4 || tokens >= avgTok * 2) {return '🔴';}
+  if (tokens >= 2500 || lines >= 400 || fraction >= 0.15 || tokens >= avgTok) {return '🟡';}
   return '🟢';
 }
 function getConsolidateHotkey(): string {
@@ -104,7 +92,7 @@ async function isBinary(uri: vscode.Uri): Promise<boolean> {
 
 async function persistFileItems(ctx: vscode.ExtensionContext) {
   const ws = vscode.workspace.workspaceFolders?.[0];
-  if (!ws) return;
+  if (!ws) {return;}
   const payload = consolidateItems
     .filter((i): i is ConsolidateItemFile => i.type === 'file')
     .map(({ uri, includeContent }) => ({ uri, includeContent }));
@@ -113,7 +101,7 @@ async function persistFileItems(ctx: vscode.ExtensionContext) {
 
 async function restoreFileItems(ctx: vscode.ExtensionContext) {
   const ws = vscode.workspace.workspaceFolders?.[0];
-  if (!ws) return;
+  if (!ws) {return;}
   const payload =
     ctx.workspaceState.get<{ uri: string; includeContent: boolean }[]>(
       WS_KEY(ws.name),
@@ -131,6 +119,15 @@ async function restoreFileItems(ctx: vscode.ExtensionContext) {
       } catch {
         /* ignore */
       }
+    }
+  }
+  // Ensure all originalDocTexts are loaded
+  for (const item of consolidateItems) {
+    if (item.type === 'file' && item.includeContent && !originalDocTexts.has(item.uri)) {
+        try {
+            const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(item.uri));
+            originalDocTexts.set(item.uri, doc.getText());
+        } catch {}
     }
   }
 }
@@ -152,9 +149,9 @@ function adjustSnippetRangeSimple(
     .slice()
     .reverse()
     .findIndex((l) => l.trim() === lastMarker);
-  if (newStartLine === -1) newStartLine = 0;
-  if (newEndLine === -1) newEndLine = docLines.length - 1;
-  else newEndLine = docLines.length - 1 - newEndLine;
+  if (newStartLine === -1) {newStartLine = 0;}
+  if (newEndLine === -1) {newEndLine = docLines.length - 1;}
+  else {newEndLine = docLines.length - 1 - newEndLine;}
 
   const newStart = new vscode.Position(newStartLine, 0);
   const newEnd = new vscode.Position(
@@ -176,7 +173,7 @@ function adjustSnippetRangeLineByLineHybridEnhanced(
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
-  if (!origLines.length) return;
+  if (!origLines.length) {return;}
 
   const matched: number[] = [];
   let searchOffset = 0;
@@ -204,8 +201,8 @@ function adjustSnippetRangeLineByLineHybridEnhanced(
             [...matched].sort((a, b) => a - b)[
               Math.floor(matched.length / 2)
             ];
-          if (Math.abs(approx - med) <= proximity) found = approx;
-        } else found = approx;
+          if (Math.abs(approx - med) <= proximity) {found = approx;}
+        } else {found = approx;}
       }
     }
 
@@ -215,7 +212,7 @@ function adjustSnippetRangeLineByLineHybridEnhanced(
     ) {
       matched.push(found);
       searchOffset = found + origLine.length;
-    } else matched.push(-1);
+    } else {matched.push(-1);}
   }
 
   if (matched.filter((m) => m !== -1).length / origLines.length < 0.8) {
@@ -252,7 +249,7 @@ function updateStatusBar() {
     tokens += itemTokenCount(i);
     if (i.type === 'file' && i.includeContent) {
       const txt = originalDocTexts.get(i.uri);
-      if (txt) lines += txt.split('\n').length;
+      if (txt) {lines += txt.split('\n').length;}
     } else if (i.type === 'snippet') {
       lines += i.range.end.line - i.range.start.line + 1;
     }
@@ -271,7 +268,7 @@ async function buildConsolidatedXML(): Promise<string> {
     consolidateItems.map(async (item) => {
       const rel = vscode.workspace.asRelativePath(vscode.Uri.parse(item.uri));
       if (item.type === 'file') {
-        if (!item.includeContent) return `<!-- ${rel} skipped -->`;
+        if (!item.includeContent) {return `<!-- ${rel} skipped -->`;}
         
         // Read current file content instead of using cached version
         try {
@@ -293,10 +290,26 @@ async function buildConsolidatedXML(): Promise<string> {
   return `<ConsolidatedFilesContext>\n${folderTreeXML}\n${(await Promise.all(codeXML)).join('\n')}\n</ConsolidatedFilesContext>`;
 }
 
-async function consolidateToClipboard() {
-  await vscode.env.clipboard.writeText(await buildConsolidatedXML());
-  vscode.window.showInformationMessage('Context copied to clipboard ✔');
+
+async function consolidate(context: vscode.ExtensionContext, to: 'clipboard' | 'file') {
+  const xml = await buildConsolidatedXML();
+  if (to === 'clipboard') {
+    await vscode.env.clipboard.writeText(xml);
+    vscode.window.showInformationMessage('Context copied to clipboard ✔');
+  } else {
+    const uri = await vscode.window.showSaveDialog({
+      filters: { XML: ['xml'] },
+    });
+    if (!uri) {return;}
+    await fs.writeFile(uri.fsPath, xml, 'utf8');
+    vscode.window.showInformationMessage('Context saved ✔');
+  }
+
+  if (vscode.workspace.getConfiguration('contextConsolidator').get('enableHistory')) {
+    await addHistorySnapshot(context, consolidateItems);
+  }
 }
+
 
 /*───────────────────────────────────────────────────────────────────────────
   ACTIVATION
@@ -306,7 +319,7 @@ export async function activate(context: vscode.ExtensionContext) {
   statusBarItem = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Left
   );
-  statusBarItem.command = 'extension.showConsolidateMenu';
+  statusBarItem.command = 'extension.manageConsolidationLists';
   context.subscriptions.push(statusBarItem);
   await restoreFileItems(context);
   updateStatusBar();
@@ -317,16 +330,16 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
       'extension.addFolderToConsolidateList',
       async (uri: vscode.Uri) => {
-        if (!uri) return;
+        if (!uri) {return;}
         const files = await vscode.workspace.findFiles(
           new vscode.RelativePattern(uri.fsPath, '**/*')
         );
         for (const file of files) {
           if (file.fsPath.split(path.sep).some((p) => EXCLUDED_DIRS.has(p)))
-            continue;
+            {continue;}
           const ext = path.extname(file.fsPath).toLowerCase();
           let includeContent = !SKIP_CONTENT_EXTS.has(ext);
-          if (includeContent && (await isBinary(file))) includeContent = false;
+          if (includeContent && (await isBinary(file))) {includeContent = false;}
 
           if (includeContent) {
             try {
@@ -370,7 +383,7 @@ export async function activate(context: vscode.ExtensionContext) {
         for (const file of targets) {
           const ext = path.extname(file.fsPath).toLowerCase();
           let includeContent = !SKIP_CONTENT_EXTS.has(ext);
-          if (includeContent && (await isBinary(file))) includeContent = false;
+          if (includeContent && (await isBinary(file))) {includeContent = false;}
 
           if (includeContent) {
             try {
@@ -399,7 +412,7 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
       'extension.addSnippetToConsolidateList',
-      () => {
+      async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor || editor.selection.isEmpty) {
           vscode.window.showInformationMessage('No selection.');
@@ -439,88 +452,26 @@ export async function activate(context: vscode.ExtensionContext) {
     )
   );
 
-  /*──────────────── MENU ──────────────────────*/
   context.subscriptions.push(
-    vscode.commands.registerCommand('extension.showConsolidateMenu', () => {
-      const qp = vscode.window.createQuickPick<
-        vscode.QuickPickItem & { action?: () => void }
-      >();
-      qp.title = 'Context Consolidator';
-
-      const rebuild = () => {
-        const buttons: (typeof qp.items[number] & { action: () => void })[] = [
-          {
-            label: '$(file-add) Consolidate → Clipboard',
-            action: () => {
-              consolidateToClipboard();
-              qp.hide();
-            },
-          },
-          {
-            label: '$(save) Save TXT to file…',
-            action: async () => {
-              const uri = await vscode.window.showSaveDialog({
-                filters: { TXT: ['txt'] },
-              });
-              if (!uri) return;
-              await fs.writeFile(uri.fsPath, await buildConsolidatedXML(), 'utf8');
-              vscode.window.showInformationMessage('Context saved ✔');
-              qp.hide();
-            },
-          },
-          {
-            label: '$(clear-all) Clear List',
-            action: () => {
-              consolidateItems = [];
-              vscode.window.visibleTextEditors.forEach((e) =>
-                e.setDecorations(snippetDecorationType, [])
-              );
-              updateStatusBar();
-              persistFileItems(context);
-              rebuild();
-            },
-          },
-          { label: '', kind: vscode.QuickPickItemKind.Separator } as any,
-        ];
-
-        const rows = (() => {
-        const totalTok = calcTotals();
-        const avgTok = totalTok / consolidateItems.length || 0;
-
-        return consolidateItems.map((item, idx) => {
-          const rel = vscode.workspace.asRelativePath(vscode.Uri.parse(item.uri));
-          const tok = itemTokenCount(item);
-          const lines = itemLineCount(item);
-          const pct = ((tok / totalTok) * 100).toFixed(1);
-          const emoji = weightEmojiDynamic(tok, lines, tok / totalTok, avgTok);
-          const tokensLabel = `${tok} tok (${pct}%)`;
-
-          const labelCore =
-            item.type === 'file'
-              ? `${rel}${item.includeContent ? '' : ' (skipped)'}`
-              : `${rel} (lines ${item.range.start.line + 1}-${item.range.end.line + 1})`;
-
-          return {
-            label: `$(trash) ${emoji} ${labelCore} – ${tokensLabel}`,
-            action: () => {
-              consolidateItems.splice(idx, 1);
-              updateStatusBar();
-              persistFileItems(context);
-              rebuild();
-            },
-          };
-        });
-      })();
-
-        qp.items = [...buttons, ...rows];
-      };
-
-      rebuild();
-      qp.onDidAccept(() => (qp.selectedItems[0] as any)?.action?.());
-      qp.onDidHide(() => qp.dispose());
-      qp.show();
+    vscode.commands.registerCommand('extension.consolidate', (to: 'clipboard' | 'file') => {
+      consolidate(context, to);
     })
   );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('extension.manageConsolidationLists', () => {
+      showManagerUI(context, consolidateItems, (newItems) => {
+        consolidateItems = newItems;
+        updateStatusBar();
+        // Update highlights for all visible editors
+        vscode.window.visibleTextEditors.forEach(editor => {
+            updateHighlightsForDocument(editor.document);
+        });
+      });
+    })
+  );
+
+  
   /*──────────────── toggle FILE(S) ───────────────*/
   context.subscriptions.push(
     vscode.commands.registerCommand(
@@ -544,7 +495,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // no estaba ⇒ añadir (misma lógica que antes)
             const ext = path.extname(file.fsPath).toLowerCase();
             let includeContent = !SKIP_CONTENT_EXTS.has(ext);
-            if (includeContent && (await isBinary(file))) includeContent = false;
+            if (includeContent && (await isBinary(file))) {includeContent = false;}
 
             if (includeContent) {
               try {
@@ -570,7 +521,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const affected = consolidateItems.filter(
         (i) => i.type === 'snippet' && i.uri === e.document.uri.toString()
       ) as ConsolidateItemSnippet[];
-      if (!affected.length) return;
+      if (!affected.length) {return;}
       affected.forEach((sn) =>
         adjustSnippetRangeLineByLineHybridEnhanced(sn, e.document)
       );
@@ -596,7 +547,7 @@ export async function activate(context: vscode.ExtensionContext) {
   /*──────────────── TEST SUITE CMD (unchanged) ─────────────────*/
   context.subscriptions.push(
     vscode.commands.registerCommand('extension_test.runTests', () => {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+       
       require('./extension_test').runTestSuite();
     })
   );

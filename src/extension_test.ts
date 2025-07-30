@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as diff_match_patch from 'diff-match-patch';
+import * as DiffMatchPatch from 'diff-match-patch';
 
 // ------------------ FakeDocument & Types ------------------
 class FakeDocument {
@@ -12,7 +12,7 @@ class FakeDocument {
   }
 
   getText(range?: vscode.Range): string {
-    if (!range) return this._text;
+    if (!range) {return this._text;}
     const start = this.offsetAt(range.start);
     const end = this.offsetAt(range.end);
     return this._text.substring(start, end);
@@ -83,16 +83,16 @@ function levenshtein(a: string, b: string): number {
 function similarityScore(actual: string, expected: string): number {
   const lev = levenshtein(actual, expected);
   const maxLen = Math.max(actual.length, expected.length);
-  if (maxLen === 0) return 1;
+  if (maxLen === 0) {return 1;}
   return 1 - lev / maxLen;
 }
 
 // ------------------ diff-match-patch Instance ------------------
-const dmp = new diff_match_patch.diff_match_patch();
+const dmp = new DiffMatchPatch.diff_match_patch();
 
 // ------------------ Hybrid Line-by-Line Algorithm ------------------
 function adjustSnippetRangeLineByLineHybridEnhanced(item: ConsolidateItem, document: FakeDocument): void {
-  if (item.type !== 'snippet' || !item.originalText) return;
+  if (item.type !== 'snippet' || !item.originalText) {return;}
 
   const fullText = document.getText();
   const docLines = fullText.split('\n');
@@ -205,8 +205,8 @@ function adjustSnippetRangeSimple(item: ConsolidateItem, document: FakeDocument)
       break;
     }
   }
-  if (newStartLine === -1) newStartLine = 0;
-  if (newEndLine === -1) newEndLine = docLines.length - 1;
+  if (newStartLine === -1) {newStartLine = 0;}
+  if (newEndLine === -1) {newEndLine = docLines.length - 1;}
   const newStartPos = new vscode.Position(newStartLine, 0);
   const newEndPos = new vscode.Position(newEndLine, docLines[newEndLine].length);
   item.range = new vscode.Range(newStartPos, newEndPos);
@@ -340,10 +340,10 @@ export function runTestSuite() {
 
   // Test G: Slight modification of snippet markers.
   const testGLines = baseLines.map((line, idx) => {
-    if (idx === 0) return line + " (modified)";
-    if (idx === 4) return line + " (modified)";
-    if (idx === 9) return line + " (modified)";
-    if (idx === 14) return line + " (modified)";
+    if (idx === 0) {return line + " (modified)";}
+    if (idx === 4) {return line + " (modified)";}
+    if (idx === 9) {return line + " (modified)";}
+    if (idx === 14) {return line + " (modified)";}
     return line;
   });
   const testG = testGLines.join('\n');

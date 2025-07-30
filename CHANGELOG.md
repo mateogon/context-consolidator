@@ -2,6 +2,13 @@
 
 All notable changes to the "context-consolidator" extension will be documented in this file.
 
+## [1.3.0] - 2025-07-30
+
+### Added
+- History & Presets: Automatically save consolidation history and create reusable presets.
+- New Manager UI: A new Quick Pick UI to manage history and presets.
+- Live Preset Sync: Presets are automatically updated as you add/remove files and snippets.
+
 ## [1.2.1] - 2025-07-21
 
 ### Fixed

@@ -8,11 +8,9 @@
     "url": "https://github.com/mateogon/file-consolidator.git"
   },
   "icon": "icon.png",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "activationEvents": [
-    "onStartupFinished",
-    "onCommand:extension.showConsolidateMenu",
-    "onCommand:extension.toggleConsolidateItem"
+    "onStartupFinished"
   ],
   "engines": {
     "vscode": "^1.96.0"
@@ -21,21 +19,14 @@
     "Other"
   ],
   "contributes": {
-    "keybindings": [
-      {
-        "command": "extension.consolidateFiles",
-        "key": "ctrl+alt+c",
-        "mac": "cmd+alt+c"
-      }
-    ],
     "commands": [
+      {
+        "command": "extension.manageConsolidationLists",
+        "title": "Context Consolidator: Manage Lists"
+      },
       {
         "command": "extension.addSnippetToConsolidateList",
         "title": "Add Selection to Consolidate List"
-      },
-      {
-        "command": "extension.consolidateFiles",
-        "title": "Consolidate Files"
       },
       {
         "command": "extension.addToConsolidateList",
@@ -44,14 +35,6 @@
       {
         "command": "extension.addFolderToConsolidateList",
         "title": "Add Folder to Consolidate List"
-      },
-      {
-        "command": "extension_test.runTests",
-        "title": "Run Consolidator Tests"
-      },
-      {
-        "command": "extension.saveConsolidationToFile",
-        "title": "Save Consolidated TXT to File"
       },
       {
         "command": "extension.toggleConsolidateItem",
@@ -78,6 +61,27 @@
           "when": "explorerResourceIsFolder"
         }
       ]
+    },
+    "configuration": {
+      "title": "Context Consolidator",
+      "properties": {
+        "contextConsolidator.enableHistory": {
+          "type": "boolean",
+          "default": true,
+          "description": "Capture each consolidation in History."
+        },
+        "contextConsolidator.historyLimit": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "description": "Maximum History snapshots to keep."
+        },
+        "contextConsolidator.enablePresets": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow saving and loading named Presets."
+        }
+      }
     }
   },
   "main": "./out/extension.js",
