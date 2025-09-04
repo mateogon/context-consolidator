@@ -15,7 +15,10 @@
     "onCommand:extension.toggleConsolidateItem",
     "onCommand:contextConsolidator.composePromptToClipboard",
     "onCommand:contextConsolidator.editPromptPreset",
-    "onCommand:contextConsolidator.savePresetFromActiveEditor"
+    "onCommand:contextConsolidator.savePresetFromActiveEditor",
+    "onCommand:extension.addSnippetToConsolidateList",
+    "onCommand:extension.addToConsolidateList",
+    "onCommand:extension.addFolderToConsolidateList"
   ],
   "engines": {
     "vscode": "^1.96.0"
@@ -24,71 +27,26 @@
     "Other"
   ],
   "contributes": {
-    "keybindings": [
-      {
-        "command": "contextConsolidator.composePromptToClipboard",
-        "key": "ctrl+alt+c",
-        "mac": "cmd+alt+c",
-        "when": "editorTextFocus || explorerViewletVisible"
-      }
-    ],
     "commands": [
-      {
-        "command": "extension.showConsolidateMenu",
-        "title": "Context Consolidator: Menu"
-      },
-      {
-        "command": "extension.addSnippetToConsolidateList",
-        "title": "Context Consolidator: Add Selection to Consolidate List"
-      },
-      {
-        "command": "extension.addToConsolidateList",
-        "title": "Context Consolidator: Add File(s) to Consolidate List"
-      },
-      {
-        "command": "extension.addFolderToConsolidateList",
-        "title": "Context Consolidator: Add Folder to Consolidate List"
-      },
-      {
-        "command": "extension.toggleConsolidateItem",
-        "title": "Context Consolidator: Add/Remove from Consolidation List"
-      },
-      {
-        "command": "contextConsolidator.composePromptToClipboard",
-        "title": "Context Consolidator: Consolidate (TaskSpec) → Clipboard"
-      },
-      {
-        "command": "contextConsolidator.editPromptPreset",
-        "title": "Context Consolidator: Edit Prompt Preset (Advanced Sections)…"
-      },
-      {
-        "command": "contextConsolidator.savePresetFromActiveEditor",
-        "title": "Context Consolidator: Save Preset From Active Editor"
-      },
-      {
-        "command": "extension_test.runTests",
-        "title": "Context Consolidator: Run Tests"
-      }
+      { "command": "extension.showConsolidateMenu", "title": "Context Consolidator: Menu" },
+      { "command": "extension.addSnippetToConsolidateList", "title": "Context Consolidator: Add Selection to Consolidate List" },
+      { "command": "extension.addToConsolidateList", "title": "Context Consolidator: Add File(s) to Consolidate List" },
+      { "command": "extension.addFolderToConsolidateList", "title": "Context Consolidator: Add Folder to Consolidate List" },
+      { "command": "extension.toggleConsolidateItem", "title": "Context Consolidator: Add/Remove from Consolidation List" },
+      { "command": "contextConsolidator.composePromptToClipboard", "title": "Context Consolidator: Consolidate (TaskSpec) → Clipboard" },
+      { "command": "contextConsolidator.editPromptPreset", "title": "Context Consolidator: Edit Prompt Preset" },
+      { "command": "contextConsolidator.savePresetFromActiveEditor", "title": "Context Consolidator: Save Preset From Active Editor" }
+    ],
+    "keybindings": [
+      { "command": "contextConsolidator.composePromptToClipboard", "key": "ctrl+alt+c", "mac": "cmd+alt+c" }
     ],
     "menus": {
       "editor/context": [
-        {
-          "command": "extension.addSnippetToConsolidateList",
-          "group": "navigation",
-          "when": "editorTextFocus && !editorReadonly"
-        }
+        { "command": "extension.addSnippetToConsolidateList", "group": "navigation", "when": "editorTextFocus && !editorReadonly" }
       ],
       "explorer/context": [
-        {
-          "command": "extension.toggleConsolidateItem",
-          "group": "navigation",
-          "when": "resourceScheme == file && !explorerResourceIsFolder"
-        },
-        {
-          "command": "extension.addFolderToConsolidateList",
-          "group": "navigation",
-          "when": "explorerResourceIsFolder"
-        }
+        { "command": "extension.toggleConsolidateItem", "group": "navigation", "when": "resourceScheme == file && !explorerResourceIsFolder" },
+        { "command": "extension.addFolderToConsolidateList", "group": "navigation", "when": "explorerResourceIsFolder" }
       ]
     }
   },
