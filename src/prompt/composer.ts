@@ -11,8 +11,8 @@ export async function buildTaskSpecXML(
   const preset = getPreset(ctx);
   const consolidated = await buildConsolidatedXML();
 
-  const header = `<TaskSpec mode="${options.mode}" reasoning_effort="${options.reasoningEffort}" verbosity="${options.verbosity}">`;
-  const userPrompt = `<UserPrompt>\n${sanitizeInner("")}\n</UserPrompt>`; // vacío a propósito
+  const header = `<TaskSpec reasoning_effort="${options.reasoningEffort}" verbosity="${options.verbosity}">`;
+  const userPrompt = `<UserPrompt>\n${sanitizeInner("")}\n</UserPrompt>`;
 
   let advanced = "";
   if (options.includeAdvancedSections) {

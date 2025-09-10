@@ -8,7 +8,7 @@ import {
 } from "../core/state";
 import { composePromptToClipboard } from "../prompt/clipboard";
 import { cycle } from "../utils/strings";
-import { PromptOptions, Mode, ReasoningEffort, Verbosity } from "../core/types";
+import { PromptOptions, ReasoningEffort, Verbosity } from "../core/types";
 import { weightEmojiDynamic } from "../core/token";
 import { presetEditorScaffold } from "../prompt/presets";
 import { extractTagInner } from "../utils/strings";
@@ -34,27 +34,11 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
               },
             },
             {
-              label: `$(tools) Include advanced sections (${
-                opts.includeAdvancedSections ? "ON" : "OFF"
-              })`,
+              label: `$(tools) Advanced sections (${opts.includeAdvancedSections ? "ON" : "OFF"})`,
               action: async () => {
                 await setOptions(context, {
                   ...opts,
                   includeAdvancedSections: !opts.includeAdvancedSections,
-                });
-                rebuild();
-              },
-            },
-            {
-              label: `$(debug-step-into) Mode: ${opts.mode} (cycle)`,
-              action: async () => {
-                await setOptions(context, {
-                  ...opts,
-                  mode: cycle<Mode>(opts.mode, [
-                    "lean",
-                    "balanced",
-                    "persistent",
-                  ]),
                 });
                 rebuild();
               },
@@ -151,9 +135,7 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
           const labelCore =
             item.type === "file"
               ? `${rel}`
-              : `${rel} (lines ${item.range.start.line + 1}-${
-                  item.range.end.line + 1
-                })`;
+              : `${rel} (lines ${item.range.start.line + 1}-${item.range.end.line + 1})`;
           return {
             label: `$(trash) ${emoji} ${labelCore} – ${tok} tok (${pct}%)`,
             action: () => {

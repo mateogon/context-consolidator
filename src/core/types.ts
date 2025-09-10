@@ -17,12 +17,10 @@ export interface ConsolidateItemSnippet {
 }
 export type ConsolidateItem = ConsolidateItemFile | ConsolidateItemSnippet;
 
-export type Mode = "lean" | "balanced" | "persistent";
 export type ReasoningEffort = "low" | "medium" | "high";
 export type Verbosity = "low" | "medium" | "high";
 
 export interface PromptOptions {
-  mode: Mode;
   reasoningEffort: ReasoningEffort;
   verbosity: Verbosity;
   includeAdvancedSections: boolean;

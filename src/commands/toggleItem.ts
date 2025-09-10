@@ -8,6 +8,7 @@ import {
 } from "../core/state";
 import { SKIP_CONTENT_EXTS } from "../core/constants";
 import { isBinaryUri } from "../utils/fs";
+import { updateStatusBar } from "../ui/statusbar";
 
 export function registerToggleItem(context: vscode.ExtensionContext) {
   context.subscriptions.push(
@@ -47,6 +48,7 @@ export function registerToggleItem(context: vscode.ExtensionContext) {
           }
         }
         await persistFileItems(context);
+        updateStatusBar(consolidateItems);
       }
     )
   );

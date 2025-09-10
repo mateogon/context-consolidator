@@ -8,6 +8,7 @@ import {
   persistFileItems,
 } from "../core/state";
 import { isBinaryUri } from "../utils/fs";
+import { updateStatusBar } from "../ui/statusbar";
 
 export function registerAddFiles(context: vscode.ExtensionContext) {
   context.subscriptions.push(
@@ -42,6 +43,7 @@ export function registerAddFiles(context: vscode.ExtensionContext) {
           }
         }
         await persistFileItems(context);
+        updateStatusBar(consolidateItems);
       }
     )
   );
