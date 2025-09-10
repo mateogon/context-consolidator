@@ -1,63 +1,62 @@
 # Context Consolidator
 
-Capture project files + code snippets and spit out a clean XML prompt in one click.
+Quickly grab files and code snippets from your project and turn them into a clean XML prompt you can paste into ChatGPT or any LLM.
 
-- One menu in the **status bar**.
-- Fresh content (no stale copies).
-- XML built for LLMs: includes your files/snippets **and** an optional prompt wrapper.
-
----
-
-## What’s new in v1.3.0
-
-| Feature                           | Why it matters                                                                                 |
-| --------------------------------- | ---------------------------------------------------------------------------------------------- |
-| **TaskSpec composer**             | One-click XML that wraps your context with `<TaskSpec …>` for better prompting.                |
-| **Advanced sections toggle**      | Include/omit `<GeneralGuidelines>`, `<CodingDirectives>`, `<Assumptions>`, `<StopConditions>`. |
-| **Modes & knobs (per workspace)** | `mode`, `reasoning_effort`, `verbosity` are saved per workspace.                               |
-| **Preset editor**                 | Edit the Advanced sections in an editor and save them for the workspace.                       |
-| **Fresh snippets**                | Snippets read the **current** text from the doc on consolidation.                              |
-| **Unified UI**                    | All from the status bar: add/remove, tune options, consolidate to clipboard.                   |
-
-> v1.2.x goodies still here: traffic-light weights 🔴🟡🟢, live token + %, multi-select, binary/junk filtering, per-workspace persistence.
+* One menu in the **status bar**.
+* Always up to date (reads files fresh, not from stale copies).
+* Generates XML with your files/snippets, plus optional prompt wrappers.
 
 ---
 
 ## Quick start
 
-1. **Add files/folders**
-   - Explorer: right-click → **Add/Remove from Consolidation List** (supports multi-select).
+1. **Add files or folders**
+
+   * Right-click in Explorer → **Add/Remove from Consolidation List** (works with multiple at once).
+
 2. **Add a snippet**
-   - Select code in the editor → right-click → **Add Selection to Consolidate List**.
-   - Snippets track edits; on export we read the **latest** text.
+
+   * Select code in the editor → right-click → **Add Selection to Consolidate List**.
+   * Snippets update automatically if you edit the file later.
+
 3. **Open the menu**
-   - Click the **status bar item** (left side) that shows `Context 📦 …` to open the Quick Pick.
-4. **(Optional) tune options**
-   - Toggle **Advanced sections** ON/OFF.
-   - Cycle **Mode**, **Reasoning Effort**, **Verbosity**.
-   - **Edit Prompt Preset** to customize the Advanced sections; **Save Preset From Active Editor** to persist.
+
+   * Click the status bar item on the left (`Context 📦 …`).
+
+4. **Tune options (optional)**
+
+   * Toggle **Advanced sections** ON/OFF.
+   * Adjust **Reasoning Effort** and **Verbosity**.
+   * Edit or save a **Prompt Preset**.
+
 5. **Export**
-   - Hit **Consolidate (TaskSpec) → Clipboard**.
-   - Paste into your LLM chat/window and fill `<UserPrompt>` (left intentionally empty).
+
+   * Choose **Consolidate (TaskSpec) → Clipboard**.
+   * Paste into your LLM and fill in `<UserPrompt>`.
 
 ---
 
 ## How it works
 
-- The status bar menu shows your current list with:
-  - 🔴🟡🟢 weight (size vs total), token count, and % of context.
-  - Click a row to remove it.
-- Files are read fresh when exporting. Binaries/junk are skipped automatically.
-- Snippets: the range tracks edits; **export** reads current text from the doc to avoid stale content.
+* **Status bar menu** shows your current list.
+
+  * Each entry has a traffic light weight (🔴🟡🟢), token count, and % of total.
+  * Click to remove items.
+
+* **Files** are read fresh at export (so you always get the latest).
+
+* **Snippets** follow their range in the document, so exports always match current content.
+
+* **Binary/junk files** are skipped automatically.
 
 ---
 
-## Output formats
+## Output
 
-### Minimal (Advanced sections OFF)
+### Minimal (no advanced sections)
 
 ```xml
-<TaskSpec mode="balanced" reasoning_effort="medium" verbosity="low">
+<TaskSpec reasoning_effort="medium" verbosity="low">
   <UserPrompt>
   </UserPrompt>
 
@@ -76,21 +75,21 @@ Capture project files + code snippets and spit out a clean XML prompt in one cli
 </TaskSpec>
 ```
 
-### With Advanced sections (Preset)
+### With advanced sections
 
 ```xml
-<TaskSpec mode="persistent" reasoning_effort="high" verbosity="low">
+<TaskSpec reasoning_effort="high" verbosity="low">
   <UserPrompt>
   </UserPrompt>
 
   <GeneralGuidelines>
-    <!-- your preset content -->
+    <!-- preset content -->
   </GeneralGuidelines>
   <CodingDirectives>
-    <!-- your preset content -->
+    <!-- preset content -->
   </CodingDirectives>
   <Assumptions></Assumptions>
-  <StopConditions>- All sub-tasks completed or explicitly listed as pending.</StopConditions>
+  <StopConditions>- Stop when all subtasks are done.</StopConditions>
 
   <ConsolidatedFilesContext>
     <FolderTree>…</FolderTree>
@@ -101,34 +100,34 @@ Capture project files + code snippets and spit out a clean XML prompt in one cli
 
 ---
 
-## Commands & UI
+## Commands & tools
 
-- **Status bar menu**: click `Context 📦 …`
+* **Status bar menu** (`Context 📦 …`):
 
-  - Consolidate (TaskSpec) → Clipboard
-  - Toggle: Include advanced sections (ON/OFF)
-  - Mode / Reasoning Effort / Verbosity (cycle)
-  - Edit Prompt Preset (opens an editor)
-  - Save Preset From Active Editor
-  - Clear List
+  * Consolidate → Clipboard
+  * Toggle advanced sections
+  * Change Reasoning Effort / Verbosity
+  * Edit or Save Prompt Preset
+  * Clear list
 
-- **Explorer (file/folder)**: Add/Remove from Consolidation List
-- **Editor selection**: Add Selection to Consolidate List
+* **Explorer**: Add/Remove files or folders
 
-> Hotkey (configurable): `Ctrl+Alt+C` / `Cmd+Alt+C` to open the menu.
+* **Editor selection**: Add selection as snippet
+
+* **Hotkey** (configurable): `Ctrl+Alt+C` / `Cmd+Alt+C`
 
 ---
 
 ## Tips
 
-- Keep `<UserPrompt>` short and concrete. The context is already in `<ConsolidatedFilesContext>`.
-- If your chat doesn’t need the wrapper, toggle **Advanced sections OFF** or paste only `<ConsolidatedFilesContext>…</ConsolidatedFilesContext>`.
+* Keep `<UserPrompt>` short and specific — your context is already included.
+* If you don’t need the wrapper, turn **Advanced sections OFF** or just copy `<ConsolidatedFilesContext>`.
 
 ---
 
 ## Requirements
 
-- VS Code `^1.96.0`
-- Windows / macOS / Linux
+* VS Code `^1.96.0`
+* Works on Windows / macOS / Linux
 
 Happy coding 🚀
