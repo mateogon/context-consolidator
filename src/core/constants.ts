@@ -33,3 +33,7 @@ export const WS_KEY_OPTIONS = (ws: string) =>
   `contextConsolidator.promptOptions:${ws}`;
 export const WS_KEY_PRESET = (ws: string) =>
   `contextConsolidator.promptPreset:${ws}`;
+export const WS_KEY_HISTORY = (ws: string) =>
+  `contextConsolidator.history:${ws}:v1`;
+export const WS_KEY_PRESETS = (ws: string) =>
+  `contextConsolidator.presets:${ws}:v1`;

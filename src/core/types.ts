@@ -29,3 +29,18 @@ export interface PromptPreset {
   generalGuidelines: string;
   codingDirectives: string;
 }
+
+export interface HistoryEntry {
+  id: string;
+  ts: number;
+  items: ConsolidateItem[];
+  totalTokens: number;
+}
+
+export interface PresetEntry {
+  id: string;
+  name: string;
+  description?: string;
+  items: ConsolidateItem[];
+  totalTokens: number;
+}

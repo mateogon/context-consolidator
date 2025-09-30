@@ -88,6 +88,27 @@
           "when": "explorerResourceIsFolder"
         }
       ]
+    },
+    "configuration": {
+      "title": "Context Consolidator",
+      "properties": {
+        "contextConsolidator.enableHistory": {
+          "type": "boolean",
+          "default": true,
+          "description": "Capture each consolidation in History."
+        },
+        "contextConsolidator.historyLimit": {
+          "type": "number",
+          "default": 20,
+          "minimum": 1,
+          "description": "Maximum history snapshots to keep."
+        },
+        "contextConsolidator.enablePresets": {
+          "type": "boolean",
+          "default": true,
+          "description": "Allow saving and loading named file-list presets."
+        }
+      }
     }
   },
   "main": "./out/extension.js",

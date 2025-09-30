@@ -126,3 +126,21 @@ export async function restoreFileItems(ctx: vscode.ExtensionContext) {
     }
   }
 }
+
+export async function replaceConsolidateItems(items: ConsolidateItem[]) {
+  consolidateItems.length = 0;
+  consolidateItems.push(...items);
+
+  originalDocTexts.clear();
+  for (const item of consolidateItems) {
+    if (item.type !== "file" || !item.includeContent) continue;
+    try {
+      const doc = await vscode.workspace.openTextDocument(
+        vscode.Uri.parse(item.uri)
+      );
+      originalDocTexts.set(item.uri, doc.getText());
+    } catch {
+      // ignore failure; tokens fallback to 0
+    }
+  }
+}
