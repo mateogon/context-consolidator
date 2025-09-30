@@ -16,6 +16,7 @@
     "onCommand:contextConsolidator.composePromptToClipboard",
     "onCommand:contextConsolidator.editPromptPreset",
     "onCommand:contextConsolidator.savePresetFromActiveEditor",
+    "onCommand:contextConsolidator.copyConsolidatedContext",
     "onCommand:extension.addSnippetToConsolidateList",
     "onCommand:extension.addToConsolidateList",
     "onCommand:extension.addFolderToConsolidateList"
@@ -59,6 +60,10 @@
       {
         "command": "contextConsolidator.savePresetFromActiveEditor",
         "title": "Context Consolidator: Save Preset From Active Editor"
+      },
+      {
+        "command": "contextConsolidator.copyConsolidatedContext",
+        "title": "Context Consolidator: Copy Consolidated Files Context"
       }
     ],
     "keybindings": [

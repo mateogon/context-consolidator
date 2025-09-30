@@ -8,7 +8,10 @@ import {
   getPreset,
   setPreset,
 } from "../core/state";
-import { composePromptToClipboard } from "../prompt/clipboard";
+import {
+  composePromptToClipboard,
+  copyConsolidatedContextToClipboard,
+} from "../prompt/clipboard";
 import { cycle, extractTagInner } from "../utils/strings";
 import {
   ConsolidateItem,
@@ -166,6 +169,13 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
             label: "$(file-add) Consolidate (TaskSpec) → Clipboard",
             action: async () => {
               await composePromptToClipboard(context);
+              qp.hide();
+            },
+          },
+          {
+            label: "$(file-code) Copy Consolidated Files Context",
+            action: async () => {
+              await copyConsolidatedContextToClipboard(context);
               qp.hide();
             },
           },
