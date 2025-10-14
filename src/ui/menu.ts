@@ -1,33 +1,5 @@
 import * as vscode from "vscode";
 import {
-  consolidateItems,
-  persistFileItems,
-  getOptions,
-  setOptions,
-  replaceConsolidateItems,
-  getPreset,
-  setPreset,
-} from "../core/state";
-import {
-  composePromptToClipboard,
-  copyConsolidatedContextToClipboard,
-} from "../prompt/clipboard";
-import { cycle, extractTagInner } from "../utils/strings";
-import {
-  ConsolidateItem,
-  HistoryEntry,
-  PresetEntry,
-  ReasoningEffort,
-  Verbosity,
-} from "../core/types";
-import {
-  itemTokenCount,
-  itemLineCount,
-  weightEmojiDynamic,
-} from "../core/token";
-import { presetEditorScaffold } from "../prompt/presets";
-import { updateStatusBar } from "./statusbar";
-import {
   addPreset,
   clearHistory,
   clearPresets,
@@ -38,6 +10,34 @@ import {
   renamePreset,
 } from "../core/history";
 import { updateHighlightsForDocument } from "../core/snippets";
+import {
+  consolidateItems,
+  getOptions,
+  getPreset,
+  persistFileItems,
+  replaceConsolidateItems,
+  setOptions,
+  setPreset,
+} from "../core/state";
+import {
+  itemLineCount,
+  itemTokenCount,
+  weightEmojiDynamic,
+} from "../core/token";
+import {
+  ConsolidateItem,
+  HistoryEntry,
+  PresetEntry,
+  ReasoningEffort,
+  Verbosity,
+} from "../core/types";
+import {
+  composePromptToClipboard,
+  copyConsolidatedContextToClipboard,
+} from "../prompt/clipboard";
+import { presetEditorScaffold } from "../prompt/presets";
+import { cycle, extractTagInner } from "../utils/strings";
+import { updateStatusBar } from "./statusbar";
 
 type MenuView = "items" | "history";
 
