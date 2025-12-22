@@ -2,18 +2,14 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { EXCLUDED_DIRS, SKIP_CONTENT_EXTS } from "../core/constants";
-import {
-  consolidateItems,
-  originalDocTexts,
-  persistFileItems,
-} from "../core/state";
+import { consolidateItems, originalDocTexts } from "../core/state";
 import { isBinaryUri } from "../utils/fs";
-import { updateStatusBar } from "../ui/statusbar";
+import { refreshUI } from "../ui/refresh";
 
 export function registerAddFolder(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "extension.addFolderToConsolidateList",
+      "contextConsolidator.addFolder",
       async (uri: vscode.Uri) => {
         if (!uri) return;
         const files = await vscode.workspace.findFiles(
@@ -43,8 +39,7 @@ export function registerAddFolder(context: vscode.ExtensionContext) {
             } as any);
           }
         }
-        await persistFileItems(context);
-        updateStatusBar(consolidateItems);
+        await refreshUI(context);
       }
     )
   );

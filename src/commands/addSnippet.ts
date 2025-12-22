@@ -1,13 +1,12 @@
 import * as vscode from "vscode";
 import { consolidateItems } from "../core/state";
-import { updateHighlightsForDocument } from "../core/snippets";
-import { updateStatusBar } from "../ui/statusbar";
+import { refreshUI } from "../ui/refresh";
 
 export function registerAddSnippet(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "extension.addSnippetToConsolidateList",
-      () => {
+      "contextConsolidator.addSnippet",
+      async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor || editor.selection.isEmpty) {
           vscode.window.showInformationMessage("No selection.");
@@ -49,8 +48,7 @@ export function registerAddSnippet(context: vscode.ExtensionContext) {
         }
 
         // Igual que el original: resaltar y actualizar status bar
-        updateHighlightsForDocument(document);
-        updateStatusBar(consolidateItems);
+        await refreshUI(context);
       }
     )
   );

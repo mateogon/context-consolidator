@@ -35,9 +35,7 @@ export function weightEmojiDynamic(
   fraction: number,
   avgTok: number
 ): string {
-  if (tokens >= 7500 || lines >= 800 || fraction >= 0.4 || tokens >= avgTok * 2)
-    return "🔴";
-  if (tokens >= 2500 || lines >= 400 || fraction >= 0.15 || tokens >= avgTok)
-    return "🟡";
+  if (fraction >= 0.3 || lines >= 800) return "🔴";
+  if (fraction >= 0.1 || lines >= 400) return "🟡";
   return "🟢";
 }

@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import {
   composePromptToClipboard,
   copyConsolidatedContextToClipboard,
+  copyPlanPromptToClipboard,
 } from "../prompt/clipboard";
 
 export function registerCompose(context: vscode.ExtensionContext) {
@@ -20,6 +21,15 @@ export function registerCompose(context: vscode.ExtensionContext) {
       "contextConsolidator.copyConsolidatedContext",
       async () => {
         await copyConsolidatedContextToClipboard(context);
+      }
+    )
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "contextConsolidator.copyPlanPrompt",
+      async () => {
+        await copyPlanPromptToClipboard(context);
       }
     )
   );

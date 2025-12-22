@@ -1,8 +1,8 @@
 // src/prompt/composer.ts
 import * as vscode from "vscode";
-import { getOptions, getPreset } from "../core/state";
+import { getOptions, getPlanPrompt, getPreset } from "../core/state";
 import { buildConsolidatedXML } from "../core/xml";
-import { sanitizeInner } from "../utils/strings";
+import { sanitizeForXML } from "../utils/strings";
 
 export async function buildTaskSpecXML(
   ctx: vscode.ExtensionContext
@@ -12,7 +12,7 @@ export async function buildTaskSpecXML(
   const consolidated = await buildConsolidatedXML();
 
   const header = `<TaskSpec reasoning_effort="${options.reasoningEffort}" verbosity="${options.verbosity}">`;
-  const userPrompt = `<UserPrompt>\n${sanitizeInner("")}\n</UserPrompt>`;
+  const userPrompt = `<UserPrompt>\n${sanitizeForXML("")}\n</UserPrompt>`;
 
   let advanced = "";
   if (options.includeAdvancedSections) {
@@ -24,4 +24,14 @@ export async function buildTaskSpecXML(
   }
 
   return [header, userPrompt, advanced, consolidated, `</TaskSpec>`].join("\n");
+}
+
+export async function buildPlanPromptXML(
+  ctx: vscode.ExtensionContext
+): Promise<string> {
+  const prompt = getPlanPrompt(ctx);
+  const consolidated = await buildConsolidatedXML();
+  const header = `<PlanSpec>`;
+  const userPrompt = `<UserPrompt>\n${sanitizeForXML(prompt)}\n</UserPrompt>`;
+  return [header, userPrompt, consolidated, `</PlanSpec>`].join("\n");
 }

@@ -2,18 +2,14 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { SKIP_CONTENT_EXTS } from "../core/constants";
-import {
-  consolidateItems,
-  originalDocTexts,
-  persistFileItems,
-} from "../core/state";
+import { consolidateItems, originalDocTexts } from "../core/state";
 import { isBinaryUri } from "../utils/fs";
-import { updateStatusBar } from "../ui/statusbar";
+import { refreshUI } from "../ui/refresh";
 
 export function registerAddFiles(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand(
-      "extension.addToConsolidateList",
+      "contextConsolidator.addFiles",
       async (uri: vscode.Uri | undefined, uris?: vscode.Uri[]) => {
         const targets = (uris?.length ? uris : uri ? [uri] : []).filter(
           Boolean
@@ -42,8 +38,7 @@ export function registerAddFiles(context: vscode.ExtensionContext) {
             } as any);
           }
         }
-        await persistFileItems(context);
-        updateStatusBar(consolidateItems);
+        await refreshUI(context);
       }
     )
   );

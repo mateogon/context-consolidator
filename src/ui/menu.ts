@@ -9,17 +9,15 @@ import {
   loadPresets,
   renamePreset,
 } from "../core/history";
-import { updateHighlightsForDocument } from "../core/snippets";
 import {
   consolidateItems,
   getOptions,
   getPreset,
-  persistFileItems,
   replaceConsolidateItems,
   setOptions,
-  setPreset,
 } from "../core/state";
 import {
+  calcTotals,
   itemLineCount,
   itemTokenCount,
   weightEmojiDynamic,
@@ -34,12 +32,13 @@ import {
 import {
   composePromptToClipboard,
   copyConsolidatedContextToClipboard,
+  copyPlanPromptToClipboard,
 } from "../prompt/clipboard";
 import { presetEditorScaffold } from "../prompt/presets";
-import { cycle, extractTagInner } from "../utils/strings";
-import { updateStatusBar } from "./statusbar";
+import { cycle } from "../utils/strings";
+import { refreshUI } from "./refresh";
 
-type MenuView = "items" | "history";
+type MenuView = "items" | "history" | "settings";
 
 type ActionItem = vscode.QuickPickItem & {
   action?: () => void | Promise<void>;
@@ -85,18 +84,22 @@ function detailForItems(items: ConsolidateItem[]): string {
     .join("\n");
 }
 
+function updateTitle(
+  qp: vscode.QuickPick<ActionItem | HistoryQuickPickItem>,
+  items: ConsolidateItem[]
+) {
+  const { tokens, lines } = calcTotals(items);
+  const tokensLabel = (tokens / 1000).toFixed(1);
+  qp.title = `📦 Context: ${items.length} items | ${lines} L | ${tokensLabel}k tok`;
+}
+
 export function registerMenuCommand(context: vscode.ExtensionContext) {
   context.subscriptions.push(
-    vscode.commands.registerCommand("extension.showConsolidateMenu", () => {
+    vscode.commands.registerCommand("contextConsolidator.showMenu", () => {
       const qp = vscode.window.createQuickPick<ActionItem | HistoryQuickPickItem>();
-      qp.title = "Context Consolidator";
 
       const refreshAfterMutation = async () => {
-        updateStatusBar(consolidateItems);
-        await persistFileItems(context);
-        vscode.window.visibleTextEditors.forEach((editor) =>
-          updateHighlightsForDocument(editor.document)
-        );
+        await refreshUI(context);
       };
 
       const saveCurrentListAsPreset = async () => {
@@ -121,7 +124,7 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
           );
           return;
         }
-        vscode.window.showInformationMessage(`Preset “${preset.name}” saved ✔`);
+        vscode.window.showInformationMessage(`Preset "${preset.name}" saved.`);
       };
 
       const runWithBusy = async (fn: () => Promise<void>) => {
@@ -141,9 +144,9 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
           await rebuild();
         });
         const label = "name" in entry
-          ? `Preset “${entry.name}”`
+          ? `Preset "${entry.name}"`
           : `Snapshot ${new Date(entry.ts).toLocaleTimeString()}`;
-        vscode.window.showInformationMessage(`${label} restored ✔`);
+        vscode.window.showInformationMessage(`${label} restored.`);
       };
 
       let view: MenuView = "items";
@@ -153,11 +156,7 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
         qp.matchOnDescription = false;
         qp.matchOnDetail = false;
 
-        const opts = getOptions(context);
-        const totalTokens = consolidateItems.reduce(
-          (sum, item) => sum + itemTokenCount(item),
-          0
-        );
+        const totalTokens = calcTotals(consolidateItems).tokens;
         const denom = totalTokens || 1;
         const avgTok =
           consolidateItems.length > 0
@@ -166,13 +165,6 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
 
         const items: ActionItem[] = [
           {
-            label: "$(file-add) Consolidate (TaskSpec) → Clipboard",
-            action: async () => {
-              await composePromptToClipboard(context);
-              qp.hide();
-            },
-          },
-          {
             label: "$(file-code) Copy Consolidated Files Context",
             action: async () => {
               await copyConsolidatedContextToClipboard(context);
@@ -180,87 +172,36 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
             },
           },
           {
-            label: "$(history) History & Presets…",
+            label: "$(play) Copy Plan Prompt (XML) (secondary)",
+            action: async () => {
+              await copyPlanPromptToClipboard(context);
+              qp.hide();
+            },
+          },
+          {
+            label: "$(book) Copy TaskSpec (XML) (legacy)",
+            action: async () => {
+              await composePromptToClipboard(context);
+              qp.hide();
+            },
+          },
+          {
+            label: "$(settings-gear) Settings & Configuration...",
+            action: async () => {
+              view = "settings";
+              await rebuild();
+            },
+          },
+          {
+            label: "$(history) History & Presets...",
             action: async () => {
               view = "history";
               await rebuild();
             },
           },
           {
-            label: "$(tag) Save Current List as Preset…",
+            label: "$(tag) Save Current List as Preset",
             action: saveCurrentListAsPreset,
-          },
-          {
-            label: `$(tools) Advanced sections (${opts.includeAdvancedSections ? "ON" : "OFF"})`,
-            action: async () => {
-              await setOptions(context, {
-                ...opts,
-                includeAdvancedSections: !opts.includeAdvancedSections,
-              });
-              await rebuild();
-            },
-          },
-          {
-            label: `$(rocket) Reasoning: ${opts.reasoningEffort} (cycle)`,
-            action: async () => {
-              await setOptions(context, {
-                ...opts,
-                reasoningEffort: cycle<ReasoningEffort>(opts.reasoningEffort, [
-                  "low",
-                  "medium",
-                  "high",
-                ]),
-              });
-              await rebuild();
-            },
-          },
-          {
-            label: `$(megaphone) Verbosity: ${opts.verbosity} (cycle)`,
-            action: async () => {
-              await setOptions(context, {
-                ...opts,
-                verbosity: cycle<Verbosity>(opts.verbosity, [
-                  "low",
-                  "medium",
-                  "high",
-                ]),
-              });
-              await rebuild();
-            },
-          },
-          {
-            label: "$(edit) Edit Prompt Preset (Advanced Sections)…",
-            action: async () => {
-              const doc = await vscode.workspace.openTextDocument({
-                content: presetEditorScaffold(getPreset(context)),
-                language: "xml",
-              });
-              await vscode.window.showTextDocument(doc, { preview: false });
-            },
-          },
-          {
-            label: "$(save) Save Preset From Active Editor",
-            action: async () => {
-              const ed = vscode.window.activeTextEditor;
-              if (!ed) {
-                vscode.window.showWarningMessage("No active editor.");
-                return;
-              }
-              const txt = ed.document.getText();
-              const gg = extractTagInner(txt, "GeneralGuidelines");
-              const cd = extractTagInner(txt, "CodingDirectives");
-              if (!gg || !cd) {
-                vscode.window.showErrorMessage(
-                  "Missing <GeneralGuidelines> or <CodingDirectives>."
-                );
-                return;
-              }
-              await setPreset(context, {
-                generalGuidelines: gg.trim(),
-                codingDirectives: cd.trim(),
-              });
-              vscode.window.showInformationMessage("Preset saved ✔");
-            },
           },
           {
             label: "$(clear-all) Clear List",
@@ -274,9 +215,7 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
         ];
 
         const rows: ActionItem[] = consolidateItems.map((item, idx) => {
-          const rel = vscode.workspace.asRelativePath(
-            vscode.Uri.parse(item.uri)
-          );
+          const rel = vscode.workspace.asRelativePath(vscode.Uri.parse(item.uri));
           const tok = itemTokenCount(item);
           const lines = itemLineCount(item);
           const pct = ((tok / denom) * 100).toFixed(1);
@@ -284,11 +223,9 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
           const labelCore =
             item.type === "file"
               ? `${rel}${item.includeContent ? "" : " (metadata)"}`
-              : `${rel} (lines ${item.range.start.line + 1}-${
-                  item.range.end.line + 1
-                })`;
+              : `${rel} (lines ${item.range.start.line + 1}-${item.range.end.line + 1})`;
           return {
-            label: `$(trash) ${emoji} ${labelCore} – ${tok} tok (${pct}%)`,
+            label: `$(trash) ${emoji} ${labelCore} - ${tok} tok (${pct}%)`,
             action: async () => {
               consolidateItems.splice(idx, 1);
               await refreshAfterMutation();
@@ -298,6 +235,96 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
         });
 
         qp.items = [...items, ...rows];
+      };
+
+      const buildSettingsView = async () => {
+        qp.placeholder = "Adjust prompt settings";
+        qp.matchOnDescription = false;
+        qp.matchOnDetail = false;
+
+        const opts = getOptions(context);
+
+        qp.items = [
+          {
+            label: "$(arrow-left) Back to Current List",
+            action: async () => {
+              view = "items";
+              await rebuild();
+            },
+          },
+          {
+            label: `Reasoning: ${opts.reasoningEffort.toUpperCase()} (cycle)`,
+            action: async () => {
+              await setOptions(context, {
+                ...opts,
+                reasoningEffort: cycle<ReasoningEffort>(opts.reasoningEffort, [
+                  "low",
+                  "medium",
+                  "high",
+                ]),
+              });
+              await rebuild();
+            },
+          },
+          {
+            label: `Verbosity: ${opts.verbosity.toUpperCase()} (cycle)`,
+            action: async () => {
+              await setOptions(context, {
+                ...opts,
+                verbosity: cycle<Verbosity>(opts.verbosity, [
+                  "low",
+                  "medium",
+                  "high",
+                ]),
+              });
+              await rebuild();
+            },
+          },
+          {
+            label: `Advanced Sections: ${opts.includeAdvancedSections ? "ON" : "OFF"}`,
+            action: async () => {
+              await setOptions(context, {
+                ...opts,
+                includeAdvancedSections: !opts.includeAdvancedSections,
+              });
+              await rebuild();
+            },
+          },
+          {
+            label: "$(edit) Edit Prompt Preset (Advanced Sections)",
+            action: async () => {
+              const doc = await vscode.workspace.openTextDocument({
+                content: presetEditorScaffold(getPreset(context)),
+                language: "xml",
+              });
+              await vscode.window.showTextDocument(doc, { preview: false });
+            },
+          },
+          {
+            label: "$(edit) Edit Plan Prompt (XML)",
+            action: async () => {
+              await vscode.commands.executeCommand(
+                "contextConsolidator.editPlanPrompt"
+              );
+            },
+          },
+          {
+            label: "$(save) Save Preset From Active Editor",
+            action: async () => {
+              await vscode.commands.executeCommand(
+                "contextConsolidator.savePresetFromActiveEditor"
+              );
+            },
+          },
+          {
+            label: "$(save) Save Plan Prompt From Active Editor",
+            action: async () => {
+              await vscode.commands.executeCommand(
+                "contextConsolidator.savePlanPromptFromActiveEditor"
+              );
+            },
+          },
+        ];
       };
 
       const buildHistoryView = async () => {
@@ -317,7 +344,7 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
             },
           },
           {
-            label: "$(tag) Save Current List as Preset…",
+            label: "$(tag) Save Current List as Preset",
             action: async () => {
               await saveCurrentListAsPreset();
               await rebuild();
@@ -327,7 +354,7 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
             label: "$(trash) Clear History",
             action: async () => {
               await clearHistory(context);
-              vscode.window.showInformationMessage("History cleared ✔");
+              vscode.window.showInformationMessage("History cleared.");
               await rebuild();
             },
           },
@@ -335,7 +362,7 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
             label: "$(trash) Clear Presets",
             action: async () => {
               await clearPresets(context);
-              vscode.window.showInformationMessage("Presets cleared ✔");
+              vscode.window.showInformationMessage("Presets cleared.");
               await rebuild();
             },
           },
@@ -344,10 +371,13 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
         items.push({ label: "", kind: vscode.QuickPickItemKind.Separator });
 
         if (presets.length) {
-          items.push({ label: "Presets (manual)", kind: vscode.QuickPickItemKind.Separator });
+          items.push({
+            label: "Presets (manual)",
+            kind: vscode.QuickPickItemKind.Separator,
+          });
           for (const entry of presets) {
             items.push({
-              label: `$(tag) ${entry.name} — ${entry.items.length} items`,
+              label: `$(tag) ${entry.name} - ${entry.items.length} items`,
               description: entry.description,
               detail: detailForItems(entry.items),
               entry,
@@ -364,12 +394,15 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
         }
 
         if (history.length) {
-          items.push({ label: "History (auto)", kind: vscode.QuickPickItemKind.Separator });
+          items.push({
+            label: "History (auto)",
+            kind: vscode.QuickPickItemKind.Separator,
+          });
           for (const entry of history) {
             const when = new Date(entry.ts).toLocaleString();
             const tokens = entry.totalTokens.toLocaleString();
             items.push({
-              label: `$(history) ${when} — ${entry.items.length} items · ${tokens} tok`,
+              label: `$(history) ${when} - ${entry.items.length} items | ${tokens} tok`,
               detail: detailForItems(entry.items),
               entry,
               buttons: [
@@ -387,7 +420,9 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
       };
 
       const rebuild = async () => {
+        updateTitle(qp, consolidateItems);
         if (view === "items") await buildItemsView();
+        else if (view === "settings") await buildSettingsView();
         else await buildHistoryView();
       };
 
@@ -395,9 +430,10 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
 
       qp.onDidAccept(async () => {
         const selected = qp.selectedItems[0] as ActionItem | undefined;
-        if (!selected?.action) return;
+        const action = selected?.action;
+        if (!action) return;
         await runWithBusy(async () => {
-          await Promise.resolve(selected.action());
+          await Promise.resolve(action());
         });
       });
 
@@ -412,10 +448,10 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
         } else if (tooltip === "Delete") {
           if ("name" in entry) {
             await deletePreset(context, entry.id);
-            vscode.window.showInformationMessage("Preset deleted ✔");
+            vscode.window.showInformationMessage("Preset deleted.");
           } else {
             await deleteHistoryEntry(context, entry.id);
-            vscode.window.showInformationMessage("Snapshot deleted ✔");
+            vscode.window.showInformationMessage("Snapshot deleted.");
           }
           await rebuild();
         } else if (tooltip === "Rename" && "name" in entry) {
@@ -427,7 +463,7 @@ export function registerMenuCommand(context: vscode.ExtensionContext) {
           const trimmed = name?.trim();
           if (!trimmed) return;
           await renamePreset(context, entry.id, trimmed);
-          vscode.window.showInformationMessage("Preset renamed ✔");
+          vscode.window.showInformationMessage("Preset renamed.");
           await rebuild();
         }
       });

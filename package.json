@@ -11,15 +11,18 @@
   "version": "1.3.4",
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:extension.showConsolidateMenu",
-    "onCommand:extension.toggleConsolidateItem",
+    "onCommand:contextConsolidator.showMenu",
+    "onCommand:contextConsolidator.toggleItem",
     "onCommand:contextConsolidator.composePromptToClipboard",
     "onCommand:contextConsolidator.editPromptPreset",
     "onCommand:contextConsolidator.savePresetFromActiveEditor",
     "onCommand:contextConsolidator.copyConsolidatedContext",
-    "onCommand:extension.addSnippetToConsolidateList",
-    "onCommand:extension.addToConsolidateList",
-    "onCommand:extension.addFolderToConsolidateList"
+    "onCommand:contextConsolidator.addSnippet",
+    "onCommand:contextConsolidator.addFiles",
+    "onCommand:contextConsolidator.addFolder",
+    "onCommand:contextConsolidator.copyPlanPrompt",
+    "onCommand:contextConsolidator.editPlanPrompt",
+    "onCommand:contextConsolidator.savePlanPromptFromActiveEditor"
   ],
   "engines": {
     "vscode": "^1.96.0"
@@ -30,28 +33,28 @@
   "contributes": {
     "commands": [
       {
-        "command": "extension.showConsolidateMenu",
+        "command": "contextConsolidator.showMenu",
         "title": "Context Consolidator: Menu"
       },
       {
-        "command": "extension.addSnippetToConsolidateList",
+        "command": "contextConsolidator.addSnippet",
         "title": "Context Consolidator: Add Selection to Consolidate List"
       },
       {
-        "command": "extension.addToConsolidateList",
+        "command": "contextConsolidator.addFiles",
         "title": "Context Consolidator: Add File(s) to Consolidate List"
       },
       {
-        "command": "extension.addFolderToConsolidateList",
+        "command": "contextConsolidator.addFolder",
         "title": "Context Consolidator: Add Folder to Consolidate List"
       },
       {
-        "command": "extension.toggleConsolidateItem",
+        "command": "contextConsolidator.toggleItem",
         "title": "Context Consolidator: Add/Remove from Consolidation List"
       },
       {
         "command": "contextConsolidator.composePromptToClipboard",
-        "title": "Context Consolidator: Consolidate (TaskSpec) → Clipboard"
+        "title": "Context Consolidator: Consolidate (TaskSpec) to Clipboard"
       },
       {
         "command": "contextConsolidator.editPromptPreset",
@@ -64,31 +67,48 @@
       {
         "command": "contextConsolidator.copyConsolidatedContext",
         "title": "Context Consolidator: Copy Consolidated Files Context"
+      },
+      {
+        "command": "contextConsolidator.copyPlanPrompt",
+        "title": "Context Consolidator: Copy Plan Prompt (XML)"
+      },
+      {
+        "command": "contextConsolidator.editPlanPrompt",
+        "title": "Context Consolidator: Edit Plan Prompt"
+      },
+      {
+        "command": "contextConsolidator.savePlanPromptFromActiveEditor",
+        "title": "Context Consolidator: Save Plan Prompt From Active Editor"
       }
     ],
     "keybindings": [
       {
-        "command": "contextConsolidator.composePromptToClipboard",
+        "command": "contextConsolidator.copyConsolidatedContext",
         "key": "ctrl+alt+c",
         "mac": "cmd+alt+c"
+      },
+      {
+        "command": "contextConsolidator.addFiles",
+        "key": "ctrl+alt+a",
+        "mac": "cmd+alt+a"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "extension.addSnippetToConsolidateList",
+          "command": "contextConsolidator.addSnippet",
           "group": "navigation",
           "when": "editorTextFocus && !editorReadonly"
         }
       ],
       "explorer/context": [
         {
-          "command": "extension.toggleConsolidateItem",
+          "command": "contextConsolidator.toggleItem",
           "group": "navigation",
           "when": "resourceScheme == file && !explorerResourceIsFolder"
         },
         {
-          "command": "extension.addFolderToConsolidateList",
+          "command": "contextConsolidator.addFolder",
           "group": "navigation",
           "when": "explorerResourceIsFolder"
         }

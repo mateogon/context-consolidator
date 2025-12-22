@@ -3,8 +3,14 @@ export function cycle<T extends string>(v: T, arr: readonly T[]): T {
   const i = arr.indexOf(v);
   return arr[(i + 1) % arr.length];
 }
+export function sanitizeForXML(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
 export function sanitizeInner(text: string): string {
-  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  return sanitizeForXML(text);
 }
 export function extractTagInner(text: string, tag: string): string | null {
   const m = new RegExp(`<${tag}\\s*>[\\s\\S]*?<\\/${tag}>`, "i").exec(text);

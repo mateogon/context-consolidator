@@ -1,10 +1,111 @@
 // src/core/state.ts (solo defaults y tipos)
 import * as vscode from "vscode";
 import { ConsolidateItem, PromptOptions, PromptPreset } from "./types";
-import { WS_KEY_ITEMS, WS_KEY_OPTIONS, WS_KEY_PRESET } from "./constants";
+import {
+  WS_KEY_ITEMS,
+  WS_KEY_OPTIONS,
+  WS_KEY_PLAN_PROMPT,
+  WS_KEY_PRESET,
+} from "./constants";
 
 export const originalDocTexts = new Map<string, string>();
 export let consolidateItems: ConsolidateItem[] = [];
+
+export function clearItemCache() {
+  originalDocTexts.clear();
+}
+
+type StoredRange = {
+  start: { line: number; character: number };
+  end: { line: number; character: number };
+};
+
+type StoredConsolidateItem =
+  | { type: "file"; uri: string; includeContent: boolean }
+  | {
+      type: "snippet";
+      uri: string;
+      range: StoredRange;
+      originalText: string;
+      text: string;
+      contextBefore?: string;
+      contextAfter?: string;
+    };
+
+type LegacyFileItem = { uri: string; includeContent?: boolean };
+
+function serializeItem(item: ConsolidateItem): StoredConsolidateItem {
+  if (item.type === "file") {
+    return { type: "file", uri: item.uri, includeContent: item.includeContent };
+  }
+  return {
+    type: "snippet",
+    uri: item.uri,
+    range: {
+      start: {
+        line: item.range.start.line,
+        character: item.range.start.character,
+      },
+      end: {
+        line: item.range.end.line,
+        character: item.range.end.character,
+      },
+    },
+    originalText: item.originalText,
+    text: item.text,
+    contextBefore: item.contextBefore,
+    contextAfter: item.contextAfter,
+  };
+}
+
+function deserializeItem(raw: unknown): ConsolidateItem | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as {
+    type?: string;
+    uri?: string;
+    includeContent?: boolean;
+    range?: StoredRange;
+    originalText?: string;
+    text?: string;
+    contextBefore?: string;
+    contextAfter?: string;
+  };
+  if (obj.type === "file" && typeof obj.uri === "string") {
+    return {
+      type: "file",
+      uri: obj.uri,
+      includeContent: !!obj.includeContent,
+    };
+  }
+  if (
+    obj.type === "snippet" &&
+    typeof obj.uri === "string" &&
+    obj.range?.start &&
+    obj.range?.end
+  ) {
+    const range = new vscode.Range(
+      new vscode.Position(obj.range.start.line, obj.range.start.character),
+      new vscode.Position(obj.range.end.line, obj.range.end.character)
+    );
+    return {
+      type: "snippet",
+      uri: obj.uri,
+      range,
+      originalText: obj.originalText ?? "",
+      text: obj.text ?? "",
+      contextBefore: obj.contextBefore,
+      contextAfter: obj.contextAfter,
+    };
+  }
+  if (!obj.type && typeof obj.uri === "string") {
+    return {
+      type: "file",
+      uri: obj.uri,
+      includeContent: !!obj.includeContent,
+    };
+  }
+  return null;
+}
 
 export function currentWorkspace(): vscode.WorkspaceFolder | undefined {
   return vscode.workspace.workspaceFolders?.[0];
@@ -25,7 +126,6 @@ export function getOptions(ctx: vscode.ExtensionContext): PromptOptions {
   if (!name) return defaultOptions();
 
   const saved = ctx.workspaceState.get<PromptOptions>(WS_KEY_OPTIONS(name));
-  // Migración suave: si había `mode` en versiones previas, lo ignoramos.
   if (saved) {
     const { reasoningEffort, verbosity, includeAdvancedSections } = saved as any;
     return {
@@ -72,6 +172,63 @@ export function defaultPreset(): PromptPreset {
   };
 }
 
+export function defaultPlanPrompt(): string {
+  return [
+    "You are acting as a **Principal Software Architect**. Your task is to analyze a user request (a new feature, refactor, or bug fix) and the provided code context in <ConsolidatedFilesContext>.",
+    "",
+    "Based on this analysis, you must generate a **detailed implementation plan**. This plan will be fed to a separate AI coding agent (like Gemini CLI, Codex, or Cursor) which will perform the actual file manipulation.",
+    "",
+    "Your goal is to ensure the agent executes the task perfectly on the first try. To achieve this, you must be precise.",
+    "",
+    "**Code Inclusion Policy (Flexible):**",
+    "- **DO** include code snippets, function bodies, or full file contents IF it adds clarity, reduces ambiguity, or if the logic is complex.",
+    "- **DO** use code blocks to define exact schemas, algorithms, or configurations that must be implemented strictly.",
+    '- **You may** use high-level instructions for trivial tasks (e.g., "Add necessary imports"), but prefer explicit code for the core logic.',
+    "",
+    "**Your response MUST follow this exact format:**",
+    "",
+    "---",
+    "",
+    "## 🚀 Overall Strategy",
+    "",
+    '(Provide a brief, high-level overview of the solution. Describe the "why" behind the plan. Explain the general approach and how the components interact.)',
+    "",
+    "## 📝 Step-by-Step Implementation Plan",
+    "",
+    "(Provide a file-by-file breakdown. Use code blocks generously where helpful.)",
+    "",
+    "- **`path/to/file1.ext`**",
+    '    - (Instruction: e.g., "Update the `calculateTotal` function to handle edge cases.")',
+    "    - (Code Block - Optional but recommended for specific logic):",
+    "      ```javascript",
+    "      // Example of the expected implementation",
+    "      function calculateTotal(items) {",
+    "          if (!items) return 0;",
+    "          // ... implementation details",
+    "      }",
+    "      ```",
+    "",
+    "- **`path/to/new_file.ext`**",
+    '    - (Instruction: "Create this file with the following initial structure.")',
+    "    - (Code Block):",
+    "      ```python",
+    "      class NewService:",
+    "          def __init__(self):",
+    "              pass",
+    "          # ...",
+    "      ```",
+    "",
+    "- **`path/to/file2.ext`**",
+    '    - (Instruction: "Import the new constant at the top of the file.")',
+    "",
+    "---",
+    "",
+    "### **Input:**",
+    "- User request: provided alongside this XML.",
+    "- Code context: see <ConsolidatedFilesContext>.",
+  ].join("\n");
+}
+
 
 export function getPreset(ctx: vscode.ExtensionContext): PromptPreset {
   const name = wsName();
@@ -89,38 +246,53 @@ export async function setPreset(
   await ctx.workspaceState.update(WS_KEY_PRESET(name), preset);
 }
 
+export function getPlanPrompt(ctx: vscode.ExtensionContext): string {
+  const name = wsName();
+  if (!name) return defaultPlanPrompt();
+  return (
+    ctx.workspaceState.get<string>(WS_KEY_PLAN_PROMPT(name)) ??
+    defaultPlanPrompt()
+  );
+}
+
+export async function setPlanPrompt(
+  ctx: vscode.ExtensionContext,
+  prompt: string
+) {
+  const name = wsName();
+  if (!name) return;
+  await ctx.workspaceState.update(WS_KEY_PLAN_PROMPT(name), prompt);
+}
+
 export async function persistFileItems(ctx: vscode.ExtensionContext) {
   const name = wsName();
   if (!name) return;
-  const payload = consolidateItems
-    .filter(
-      (i): i is { type: "file"; uri: string; includeContent: boolean } =>
-        i.type === "file"
-    )
-    .map(({ uri, includeContent }) => ({ uri, includeContent }));
+  const payload = consolidateItems.map(serializeItem);
   await ctx.workspaceState.update(WS_KEY_ITEMS(name), payload);
 }
 
 export async function restoreFileItems(ctx: vscode.ExtensionContext) {
   const name = wsName();
   if (!name) return;
-  const payload = ctx.workspaceState.get<
-    { uri: string; includeContent: boolean }[]
-  >(WS_KEY_ITEMS(name), []);
+  const payload = ctx.workspaceState.get<unknown[]>(WS_KEY_ITEMS(name), []);
 
   // Restaurar lista
+  consolidateItems.length = 0;
   consolidateItems.push(
-    ...payload.map((p) => ({ type: "file", ...p } as any))
+    ...payload
+      .map((p) => deserializeItem(p))
+      .filter((p): p is ConsolidateItem => !!p)
   );
 
   // Rehidratar textos para cómputo de tokens/líneas en status bar
-  for (const p of payload) {
-    if (!p.includeContent) continue;
+  clearItemCache();
+  for (const item of consolidateItems) {
+    if (item.type !== "file" || !item.includeContent) continue;
     try {
       const doc = await vscode.workspace.openTextDocument(
-        vscode.Uri.parse(p.uri)
+        vscode.Uri.parse(item.uri)
       );
-      originalDocTexts.set(p.uri, doc.getText());
+      originalDocTexts.set(item.uri, doc.getText());
     } catch {
       // si no se puede abrir, dejamos sin texto; tokens/lines=0
     }
@@ -131,7 +303,7 @@ export async function replaceConsolidateItems(items: ConsolidateItem[]) {
   consolidateItems.length = 0;
   consolidateItems.push(...items);
 
-  originalDocTexts.clear();
+  clearItemCache();
   for (const item of consolidateItems) {
     if (item.type !== "file" || !item.includeContent) continue;
     try {
